@@ -33,11 +33,9 @@ teacher_forcing = False # teacher forcing/free decoding
 green_color = '#82B366'
 red_color = '#B85450'
 
-# TODO: Code for itarting through the checkpoitns here
-#       Also add lists for results storing
 
 alti_dict = dict()
-directory = "/cluster/scratch/ggabriel/ma/tm/checkpoints/"
+directory = "/cluster/scratch/ggabriel/ma/tm/checkpoints/analysis/"
 for f in os.listdir(os.fsencode(directory)):
     filename = os.fsdecode(f)
     print(filename)
@@ -174,7 +172,6 @@ for f in os.listdir(os.fsencode(directory)):
     alti_dict[step_number] = (total_source_contribution, total_target_contribution)
     print(alti_dict)
 
-# TODO: Add output logic here, save lists in a file
 import pickle 
 
 with open('alti_results.pkl', 'wb') as f:

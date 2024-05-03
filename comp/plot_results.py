@@ -12,7 +12,7 @@ with open('../kl/kl_dict_bigram.pkl', 'rb') as f:
     kl_dict_bigram = pickle.load(f)
     list_bigram = sorted(kl_dict_bigram.items())
 
-fig, axs = plt.subplots(3, 1, sharex=True)
+fig, axs = plt.subplots(4, 1, sharex=True)
 # Remove horizontal space between axes
 fig.subplots_adjust(hspace=0.08)
 
@@ -50,6 +50,19 @@ ax3.set_ylabel("loss")
 ax3.grid()
 ax3.legend()
 
+ax4 = axs[3]
+with open('bleu/bleu.pkl', 'rb') as f:
+    bleu_list = pickle.load(f)
+lists = sorted(bleu_list.items()) # sorted by key, return a list of tuples
+x, y = zip(*lists) # unpack a list of pairs into two tuples
+ax4.plot(x, y, linestyle='-', marker='.', label='test BLEU')
+ax4.set_ylabel("BLEU")
+ax4.grid()
+ax4.legend()
+
+
+
+
 
 fig.suptitle('ALTI+ mean source contributions and KL divergence of TM and LM', wrap=True)
 
@@ -61,6 +74,4 @@ fig.suptitle('ALTI+ mean source contributions and KL divergence of TM and LM (li
 ticks = [100, 500, 1000, 5000, 10000, 50000, 100000]
 plt.xticks(ticks, ticks)
 plt.savefig('kl_plus_alti_log.pdf')
-
-
 

@@ -7,7 +7,7 @@ for filename in checkpoints/*; do
     echo $filename
     fairseq-generate data-bin/iwslt14.sep.tokenized.de-en \
         --path $filename \
-        --batch-size 128 --beam 5 \
+        --batch-size 128 --beam 1\
 	--results-path evaluation/$(basename $filename .pt) \
         --score-reference
 done
@@ -19,7 +19,7 @@ for filename in checkpoints/*; do
     echo $filename
     fairseq-generate data-bin/iwslt14.sep.tokenized.de-en \
         --path $filename \
-        --batch-size 128 --beam 5 \
+        --batch-size 128 --beam 1 \
         --results-path evaluation/$(basename $filename .pt) \
         --score-reference
 done
