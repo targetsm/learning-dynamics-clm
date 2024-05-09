@@ -8,6 +8,7 @@ import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
 import numpy as np
 from fairseq.hub_utils import GeneratorHubInterface
 from fairseq.models.transformer import TransformerModel
@@ -17,6 +18,7 @@ from einops import rearrange
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+from .lrp import LRP, relprop_add
 
 rc={'font.size': 12, 'axes.labelsize': 10, 'legend.fontsize': 10.0,
     'axes.titlesize': 24, 'xtick.labelsize': 24, 'ytick.labelsize': 24,
@@ -608,16 +610,66 @@ class FairseqTransformerHub(GeneratorHubInterface):
         c_roll[dec_ed] = cross_contributions
 
         return c_roll
-
-    def _rdo_to_logits_relprop(self, R):
-        #TODO: implement
-        return R
     
-    def relprop_norm(self, R, name):
+    def relprop_residual(self, R, R_res, name_prev, name_next):
+        pre_residual_scale = torch.sum(torch.abs(R) + torch.abs(R_res))
+        #print(pre_residual_scale)
+        R = R + R_res
+        #print(torch.sum(torch.abs(R)))
+        R = R * pre_residual_scale / torch.sum(torch.abs(R))
+        #print(torch.sum(torch.abs(R)))
         return R
 
-    def relprop_ffn(self, R, name):
-        return R
+    def relprop_norm(self, output_relevance, name):
+        inp = self.layer_inputs[name[0]][0][0].squeeze(1)
+        out = self.layer_outputs[name[0]][0].squeeze(1)
+        
+        flat_inp = torch.reshape(inp, [-1, inp.shape[-1]]) # shape [inp_size, *dims]
+        
+        flat_out_relevance = torch.reshape(output_relevance, [-1, output_relevance.shape[-1]])
+
+        #print(flat_inp.shape, flat_out_relevance.shape)
+        #flat_inp_relevance = tf.map_fn(
+        #    lambda i: LRP.relprop(self, flat_out_relevance[i, None], flat_inp[i, None],
+        #                          jacobians=[self._jacobian(flat_inp[i, None])], batch_axes=(0,))[0],
+        #    elems=tf.range(tf.shape(flat_inp)[0]), dtype=inp.dtype, parallel_iterations=2 ** 10)
+        #input_relevance = LRP.rescale(output_relevance, tf.reshape(flat_inp_relevance, tf.shape(inp)))
+        input_relevance = output_relevance
+        return input_relevance
+
+    def relprop_ffn(self, output_relevance, name):
+        """
+        computes input relevance given output_relevance
+        :param output_relevance: relevance w.r.t. layer output, [*dims, out_size]
+        notation from DOI:10.1371/journal.pone.0130140, Eq 60
+        """
+        #print(name)
+        inp = self.layer_inputs[name[0]][0][0].squeeze(1)
+        out = self.layer_outputs[name[0]][0].squeeze(1)
+        # inp: [*dims, inp_size], out: [*dims, out_size]
+        linear_self = eval(name[1])
+
+        # note: we apply relprop for each independent sample in order to avoid quadratic memory requirements
+        flat_inp = torch.reshape(inp, [-1, inp.shape[-1]]) # shape [inp_size, *dims]
+
+        flat_out_relevance = torch.reshape(output_relevance, [-1, output_relevance.shape[-1]])
+
+        #print(flat_inp.shape, flat_out_relevance.shape)
+        
+        flat_inp_relevance = []
+        #print(linear_self.weight.data)
+        for i in range(flat_inp.shape[0]):
+            flat_inp_relevance.append(LRP.relprop(linear_self, flat_out_relevance[i, None], flat_inp[i, None],
+                                      jacobians=[linear_self.weight.data.T[None, :, None, :]], batch_axes=(0,))[0])
+        flat_inp_relevance = torch.stack(flat_inp_relevance)
+        input_relevance = LRP.rescale(output_relevance, torch.reshape(flat_inp_relevance, inp.shape))
+        return input_relevance
+
+    def relprop_attn(self, R, name):
+        if name[1].split('.')[-1] == 'encoder_attn':
+            return {'query_inp':R, 'kv_inp':R}
+        else:
+            return R
 
     def relprop_decode(self, R):
         """ propagates relevances from rdo to output embeddings and encoder state """
@@ -626,76 +678,50 @@ class FairseqTransformerHub(GeneratorHubInterface):
 
         R_enc = 0.0
         R_enc_scale = 0.0
-        print(self.models[0])
-        for layer in self.models[0].decoder.layers[::-1]:
-            R = self.relprop_norm(R, 'final_layer_norm')
-            R = self.relprop_residual(R, 'self_attn', 'self_attn_layer_norm')
+        #print(self.models[0])
+        #print(len(self.models[0].decoder.layers))
+        for i in range(len(self.models[0].decoder.layers))[::-1]:
+            name = lambda string: (f'models.0.decoder.layers.{i}.{string}', f'self.models[0].decoder.layers[{i}].{string}')
+            
+            R = self.relprop_norm(R, name('final_layer_norm'))
+            R_res = R
+            R = self.relprop_ffn(R, name('fc2'))
+            R = self.relprop_ffn(R, name('fc1'))
+            R = self.relprop_residual(R, R_res, name('fc1'), name('fc2'))
 
-            R = self.relprop_ffn(R, 'fc2')
-            R = self.relprop_ffn(R, 'fc1')
-            R = self.relprop_norm(R, 'encoder_attn_layer_norm')
-            R = self.relprop_residual(R, 'self_attn', 'self_attn_layer_norm')
-
-            relevance_dict = self.relprop_attn(R, 'encoder_attn')
+            R = self.relprop_norm(R, name('encoder_attn_layer_norm'))
+            R_res = R
+            #possibly another layernorm here attn_ln 
+            relevance_dict = self.relprop_attn(R, name('encoder_attn'))
             R = relevance_dict['query_inp']
             R_enc += relevance_dict['kv_inp']
             R_enc_scale += torch.sum(torch.abs(relevance_dict['kv_inp']))
-            R = self.relprop_norm(R, 'self_attn_layer_norm')
-            R = self.relprop_residual(R, 'self_attn', 'self_attn_layer_norm')
-            R = self.relprop_attn(R, 'self_attn')
+            R = self.relprop_residual(R, R_res, name('encoder_attn'), name('encoder_attn'))
 
-        #for layer in range(self.num_layers_dec)[::-1]:
-        #    R = self.dec_ffn[layer].relprop(R)
-
-        #    relevance_dict = self.dec_enc_attn[layer].relprop(R, main_key='query_inp')
-        #    R = relevance_dict['query_inp']
-        #    R_enc += relevance_dict['kv_inp']
-        #    R_enc_scale += tf.reduce_sum(abs(relevance_dict['kv_inp']))
-
-        #    R = self.dec_attn[layer].relprop(R)
+            R = self.relprop_norm(R, name('self_attn_layer_norm'))
+            R_res = R
+            R = self.relprop_attn(R, name('self_attn'))
+            R = self.relprop_residual(R, R_res, name('self_attn'), name('self_attn'))
 
         # shift left: compensate for right shift
-        #R_crop = tf.pad(R, [[0, 0], [0, 1], [0, 0]])[:, 1:, :]
-        import torch.nn.functional as F
         R_crop = F.pad(input=R, pad=(0, 0, 0, 1, 0, 0), mode='constant', value=0)[:, 1:, :]
-        R_enc = R
+        #print(R)
         return {'emb_out': R_crop, 'enc_out': R_enc * R_enc_scale / torch.sum(torch.abs(R_enc)),
                 'emb_out_before_crop': R}
         
 
     def relprop_encode(self, R):
         """ propagates relevances from enc_out to emb_inp """
-        #if self.normalize_out:
-        #    R = self.enc_out_norm.relprop(R)
-        #for layer in range(self.num_layers_enc)[::-1]:
-        #    print(layer)
-        #    R = self.enc_ffn[layer].relprop(R)
-        #    R = self.enc_attn[layer].relprop(R)
-        #print('test_encode_end')
+        for i in range(len(self.models[0].encoder.layers))[::-1]:
+            name = lambda string: (f'models.0.decoder.layers.{i}.{string}', f'self.models[0].decoder.layers[{i}].{string}')
+            R = self.relprop_norm(R, name('final_layer_norm'))
+            R_res = R
+            R = self.relprop_ffn(R, name('fc2'))
+            R = self.relprop_ffn(R, name('fc1'))
+            R = self.relprop_residual(R, R_res, name('fc1'), name('fc2'))
+        
+            R_res = R
+            R = self.relprop_attn(R, name('self_attn'))
+            R = self.relprop_residual(R, R_res, name('self_attn'), name('self_attn'))
         return R
 
-    #def compute_relevances(self, source_sentence, target_sentence, log_probs, layer_inputs, layer_outputs, pred_tensor):
-    #    self.layer_inputs = layer_inputs
-    #    self.layer_outputs = layer_outputs
-
-    #    R_ = torch.zeros(log_probs.shape)
-    #    inp_lrp = []
-    #    out_lrp = []
-    #    print(self.models)
-    #    print(layer_inputs.keys(), layer_outputs.keys())
-    #    print(layer_outputs['models.0.decoder.output_projection'])
-    #    
-    #    for i in range(len(target_sentence)):
-    #        R_ = torch.zeros([1] + list(log_probs.shape)) #shape same as original lrp
-    #        R_[0, i,pred_tensor[i]] = 1
-    #        R = self._rdo_to_logits_relprop(R_)
-    #        R = self.relprop_decode(R)
-    #        R_inp = torch.sum(torch.abs(self.relprop_encode(R['enc_out'])), dim=-1)
-    #        R_out = torch.sum(torch.abs(R['emb_out']), dim=-1)
-    #        R_out_uncrop = torch.sum(torch.abs(R['emb_out_before_crop']), dim=-1)
-    #        inp_lrp.append(R_inp[0])
-    #        out_lrp.append(R_out_uncrop[0])
-    #    res = {'src': source_sentence, 'dst': target_sentence,
-    #               'inp_lrp': np.array(inp_lrp), 'out_lrp': np.array(out_lrp)
-    #              }
-    #    return res

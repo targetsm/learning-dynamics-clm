@@ -104,14 +104,17 @@ for f in os.listdir(os.fsencode(directory)):
         for i in range(len(predicted_sentence)):
             R_ = torch.zeros([1] + list(log_probs.shape)) #shape same as original lrp
             R_[0, i,pred_tensor[i]] = 1
-            R = hub._rdo_to_logits_relprop(R_)
+            R = hub.relprop_ffn(R_, ("models.0.decoder.output_projection", "self.models[0].decoder.output_projection")) #model.loss._rdo_to_logits.relprop(R_)
+            print('R', R)
             R = hub.relprop_decode(R)
+            print('R_decode', R)
             R_inp = torch.sum(torch.abs(hub.relprop_encode(R['enc_out'])), dim=-1)
             R_out = torch.sum(torch.abs(R['emb_out']), dim=-1)
             R_out_uncrop = torch.sum(torch.abs(R['emb_out_before_crop']), dim=-1)
             inp_lrp.append(R_inp[0])
-            out_lrp.append(R_out_uncrop[0])
+            out_lrp.append(R_out_uncrop[0])        
+        
         result[filename].append({'src': source_sentence, 'dst': target_sentence,
-                   'inp_lrp': np.array(inp_lrp), 'out_lrp': np.array(out_lrp)
-                  })
+                   'inp_lrp': np.array(inp_lrp), 'out_lrp': np.array(out_lrp)})
+        print(result[filename])
 pickle.dump(result, open(dir_out + 'lrp_results', 'wb'))
