@@ -476,7 +476,7 @@ class FairseqTransformerHub(GeneratorHubInterface):
             contrib_type ('str', defaults to 'l1' (Ferrando et al ., 2022)):
                 Type of layer-wise contribution measure: 'l1', 'l2', 'koba' (Kobayashi et al ., 2021) or 'attn_w'.
             norm_mode ('str', defaults to 'min_sum' (Ferrando et al ., 2022)):
-                Type of normalization applied to layer-wise contributions: 'min_sum', 'min_max', 'sum_one', 'softmax'.
+                Typecof normalization applied to layer-wise contributions: 'min_sum', 'min_max', 'sum_one', 'softmax'.
         Returns:
             Dictionary with elements in ATTN_MODULE as keys, and tensor with contributions (batch_size, num_layers, src_len, tgt_len) as values.
         """
@@ -613,28 +613,37 @@ class FairseqTransformerHub(GeneratorHubInterface):
     
     def relprop_residual(self, R, R_res, name_prev, name_next):
         pre_residual_scale = torch.sum(torch.abs(R) + torch.abs(R_res))
-        #print(pre_residual_scale)
         R = R + R_res
-        #print(torch.sum(torch.abs(R)))
+        R = R * pre_residual_scale / torch.sum(abs(R))
+        
+        residual_inp = self.layer_inputs[name_prev[0]][0][0].squeeze(1)
+        residual_update = self.layer_outputs[name_next[0]][0].squeeze(1)
+        original_scale = torch.sum(torch.abs(R))
+        Rinp_residual = 0.0
+        Rinp_residual, R = relprop_add(R, residual_inp, residual_update)
+
+        pre_residual_scale = torch.sum(abs(R) + abs(Rinp_residual))
+
+        R = R + Rinp_residual
         R = R * pre_residual_scale / torch.sum(torch.abs(R))
-        #print(torch.sum(torch.abs(R)))
         return R
 
     def relprop_norm(self, output_relevance, name):
+        def _jacobian(flat_inp):
+            return flat_inp
         inp = self.layer_inputs[name[0]][0][0].squeeze(1)
         out = self.layer_outputs[name[0]][0].squeeze(1)
         
         flat_inp = torch.reshape(inp, [-1, inp.shape[-1]]) # shape [inp_size, *dims]
         
         flat_out_relevance = torch.reshape(output_relevance, [-1, output_relevance.shape[-1]])
-
-        #print(flat_inp.shape, flat_out_relevance.shape)
-        #flat_inp_relevance = tf.map_fn(
-        #    lambda i: LRP.relprop(self, flat_out_relevance[i, None], flat_inp[i, None],
-        #                          jacobians=[self._jacobian(flat_inp[i, None])], batch_axes=(0,))[0],
-        #    elems=tf.range(tf.shape(flat_inp)[0]), dtype=inp.dtype, parallel_iterations=2 ** 10)
-        #input_relevance = LRP.rescale(output_relevance, tf.reshape(flat_inp_relevance, tf.shape(inp)))
-        input_relevance = output_relevance
+        self_norm = eval(name[1])
+        flat_inp_relevance = []
+        for i in range(flat_inp.shape[0]):
+            flat_inp_relevance.append(LRP.relprop(self_norm, flat_out_relevance[i, None], 
+                flat_inp[i, None], jacobians=[_jacobian(flat_inp[i, None])], batch_axes=(0,))[0])
+        flat_inp_relevance = torch.stack(flat_inp_relevance)
+        input_relevance = LRP.rescale(output_relevance, torch.reshape(flat_inp_relevance, inp.shape))
         return input_relevance
 
     def relprop_ffn(self, output_relevance, name):
@@ -643,7 +652,6 @@ class FairseqTransformerHub(GeneratorHubInterface):
         :param output_relevance: relevance w.r.t. layer output, [*dims, out_size]
         notation from DOI:10.1371/journal.pone.0130140, Eq 60
         """
-        #print(name)
         inp = self.layer_inputs[name[0]][0][0].squeeze(1)
         out = self.layer_outputs[name[0]][0].squeeze(1)
         # inp: [*dims, inp_size], out: [*dims, out_size]
@@ -654,10 +662,8 @@ class FairseqTransformerHub(GeneratorHubInterface):
 
         flat_out_relevance = torch.reshape(output_relevance, [-1, output_relevance.shape[-1]])
 
-        #print(flat_inp.shape, flat_out_relevance.shape)
         
         flat_inp_relevance = []
-        #print(linear_self.weight.data)
         for i in range(flat_inp.shape[0]):
             flat_inp_relevance.append(LRP.relprop(linear_self, flat_out_relevance[i, None], flat_inp[i, None],
                                       jacobians=[linear_self.weight.data.T[None, :, None, :]], batch_axes=(0,))[0])
@@ -670,7 +676,7 @@ class FairseqTransformerHub(GeneratorHubInterface):
             return {'query_inp':R, 'kv_inp':R}
         else:
             return R
-
+    
     def relprop_decode(self, R):
         """ propagates relevances from rdo to output embeddings and encoder state """
         #if self.normalize_out:
@@ -678,8 +684,6 @@ class FairseqTransformerHub(GeneratorHubInterface):
 
         R_enc = 0.0
         R_enc_scale = 0.0
-        #print(self.models[0])
-        #print(len(self.models[0].decoder.layers))
         for i in range(len(self.models[0].decoder.layers))[::-1]:
             name = lambda string: (f'models.0.decoder.layers.{i}.{string}', f'self.models[0].decoder.layers[{i}].{string}')
             
@@ -688,24 +692,25 @@ class FairseqTransformerHub(GeneratorHubInterface):
             R = self.relprop_ffn(R, name('fc2'))
             R = self.relprop_ffn(R, name('fc1'))
             R = self.relprop_residual(R, R_res, name('fc1'), name('fc2'))
-
+            print(R.shape)
             R = self.relprop_norm(R, name('encoder_attn_layer_norm'))
-            R_res = R
+            #print(R)
+            #R_res = R
             #possibly another layernorm here attn_ln 
-            relevance_dict = self.relprop_attn(R, name('encoder_attn'))
-            R = relevance_dict['query_inp']
-            R_enc += relevance_dict['kv_inp']
-            R_enc_scale += torch.sum(torch.abs(relevance_dict['kv_inp']))
-            R = self.relprop_residual(R, R_res, name('encoder_attn'), name('encoder_attn'))
+            #relevance_dict = self.relprop_attn(R, name('encoder_attn'))
+            #R = relevance_dict['query_inp']
+            #R_enc += relevance_dict['kv_inp']
+            #R_enc_scale += torch.sum(torch.abs(relevance_dict['kv_inp']))
+            #R = self.relprop_residual(R, R_res, name('encoder_attn'), name('encoder_attn'))
 
-            R = self.relprop_norm(R, name('self_attn_layer_norm'))
-            R_res = R
-            R = self.relprop_attn(R, name('self_attn'))
-            R = self.relprop_residual(R, R_res, name('self_attn'), name('self_attn'))
+            #R = self.relprop_norm(R, name('self_attn_layer_norm'))
+            #R_res = R
+            #R = self.relprop_attn(R, name('self_attn'))
+            #R = self.relprop_residual(R, R_res, name('self_attn'), name('self_attn'))
 
         # shift left: compensate for right shift
+        R_enc = R
         R_crop = F.pad(input=R, pad=(0, 0, 0, 1, 0, 0), mode='constant', value=0)[:, 1:, :]
-        #print(R)
         return {'emb_out': R_crop, 'enc_out': R_enc * R_enc_scale / torch.sum(torch.abs(R_enc)),
                 'emb_out_before_crop': R}
         
@@ -715,13 +720,13 @@ class FairseqTransformerHub(GeneratorHubInterface):
         for i in range(len(self.models[0].encoder.layers))[::-1]:
             name = lambda string: (f'models.0.decoder.layers.{i}.{string}', f'self.models[0].decoder.layers[{i}].{string}')
             R = self.relprop_norm(R, name('final_layer_norm'))
-            R_res = R
+            #R_res = R
             R = self.relprop_ffn(R, name('fc2'))
             R = self.relprop_ffn(R, name('fc1'))
-            R = self.relprop_residual(R, R_res, name('fc1'), name('fc2'))
+            #R = self.relprop_residual(R, R_res, name('fc1'), name('fc2'))
         
-            R_res = R
-            R = self.relprop_attn(R, name('self_attn'))
-            R = self.relprop_residual(R, R_res, name('self_attn'), name('self_attn'))
+            #R_res = R
+            #R = self.relprop_attn(R, name('self_attn'))
+            #R = self.relprop_residual(R, R_res, name('self_attn'), name('self_attn'))
         return R
 

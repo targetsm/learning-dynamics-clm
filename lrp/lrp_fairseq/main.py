@@ -105,15 +105,18 @@ for f in os.listdir(os.fsencode(directory)):
             R_ = torch.zeros([1] + list(log_probs.shape)) #shape same as original lrp
             R_[0, i,pred_tensor[i]] = 1
             R = hub.relprop_ffn(R_, ("models.0.decoder.output_projection", "self.models[0].decoder.output_projection")) #model.loss._rdo_to_logits.relprop(R_)
-            print('R', R)
+            print('R', R.shape)
             R = hub.relprop_decode(R)
             print('R_decode', R)
             R_inp = torch.sum(torch.abs(hub.relprop_encode(R['enc_out'])), dim=-1)
             R_out = torch.sum(torch.abs(R['emb_out']), dim=-1)
             R_out_uncrop = torch.sum(torch.abs(R['emb_out_before_crop']), dim=-1)
+            print(R_inp, R_out, R_out_uncrop)
             inp_lrp.append(R_inp[0])
             out_lrp.append(R_out_uncrop[0])        
-        
+            import gc
+            gc.collect()
+            torch.cuda.empty_cache()
         result[filename].append({'src': source_sentence, 'dst': target_sentence,
                    'inp_lrp': np.array(inp_lrp), 'out_lrp': np.array(out_lrp)})
         print(result[filename])
