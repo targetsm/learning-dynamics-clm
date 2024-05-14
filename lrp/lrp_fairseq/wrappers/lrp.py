@@ -75,7 +75,7 @@ class LRP:
             input_size_per_sample = flat_reference_input.shape[0] // num_samples
 
             flat_bias_impact = torch.reshape(reference_output, [-1]) / float(input_size_per_sample)
-
+            #print(flat_jacobian.shape, flat_input[None, :].shape)
             flat_impact = flat_bias_impact[:, None] + flat_jacobian * (flat_input - flat_reference_input)[None, :]
             # ^-- [output_size, combined_input_size], aka z_{j<-i}
             
@@ -129,7 +129,7 @@ def relprop_add(output_relevance, *inputs, hid_axis=-1, **kwargs):
     """ relprop through elementwise addition of tensors of the same shape """
     input_shapes = [x.shape for x in inputs]
     #tiled_input_shape = reduce(tf.broadcast_dynamic_shape, input_shapes) # no idea what this part does
-    tiled_input_shape = inputs[0].shape
+    tiled_input_shape = torch.broadcast_shapes(*input_shapes)
     #print([tiled_input_shape[s] // input_shapes[0][s] for s in (0,1)])
     inputs_tiled = [torch.tile(inp, [tiled_input_shape[s] // input_shapes[0][s] for s in (0,1)]) for inp, inp_shape in zip(inputs, input_shapes)] # this could fail because of tile 
     hid_size = inputs[0].shape[hid_axis]
@@ -153,8 +153,11 @@ def relprop_add(output_relevance, *inputs, hid_axis=-1, **kwargs):
 
 
 def lrp_sum_to_shape(x, new_shape):
-    summation_axes = torch.where(torch.not_equal(new_shape,x.shape))[..., 0]
-    x_new = torch.sum(x, axis=summation_axes, keepdims=True)
-    x_new.set_shape([None] * x.shape.ndims)
-    x_new = x
-    return LRP.rescale(x, x_new, batch_axes=())
+    summation_axes = torch.where(torch.not_equal(torch.tensor(new_shape),torch.tensor(x.shape)))
+    if summation_axes[0].numel():
+        summation_axes = summation_axes[:, 0]
+        x_new = torch.sum(x, axis=summation_axes, keepdims=True)
+        x_new.set_shape([None] * x.shape.ndims)
+        return LRP.rescale(x, x_new, batch_axes=())
+    else:
+        return x
