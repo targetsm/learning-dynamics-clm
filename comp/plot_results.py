@@ -12,7 +12,7 @@ with open('../kl/kl_dict_bigram.pkl', 'rb') as f:
     kl_dict_bigram = pickle.load(f)
     list_bigram = sorted(kl_dict_bigram.items())
 
-fig, axs = plt.subplots(4, 1, sharex=True)
+fig, axs = plt.subplots(5, 1, sharex=True)
 # Remove horizontal space between axes
 fig.subplots_adjust(hspace=0.08)
 
@@ -60,13 +60,23 @@ ax4.set_ylabel("BLEU")
 ax4.grid()
 ax4.legend()
 
-
+ax5 = axs[4]
+with open('comet/comet.pkl', 'rb') as f:
+    comet_dict = pickle.load(f)
+comet_dict = {int(ckpt):x.system_score for ckpt, x in comet_dict.items()}
+lists = sorted(comet_dict.items()) # sorted by key, return a list of tuples
+print(lists)
+x, y = zip(*lists) # unpack a list of pairs into two tuples
+ax5.plot(x, y, linestyle='-', marker='.', label='test COMET')
+ax5.set_ylabel("COMET")
+ax5.grid()
+ax5.legend()
 
 
 
 fig.suptitle('ALTI+ mean source contributions and KL divergence of TM and LM', wrap=True)
 
-fig.set_size_inches(7,7)
+fig.set_size_inches(7,9)
 plt.savefig('kl_plus_alti.pdf')
 
 plt.xscale('log')
