@@ -269,7 +269,7 @@ class FairseqTransformerHub(GeneratorHubInterface):
                 return x
         residual_inp = self.layer_inputs[name_prev[0]][0][0].squeeze(1)
         residual_update = self.layer_outputs[name_next[0]][0].squeeze(1)
-        print(name_prev[0], residual_inp, name_next[0], residual_update)
+        #print(name_prev[0], residual_inp, name_next[0], residual_update)
         inputs = [residual_inp, residual_update]
         input_shapes = [x.shape for x in inputs]
         #tiled_input_shape = reduce(tf.broadcast_dynamic_shape, input_shapes) # no idea what this part does
@@ -329,7 +329,7 @@ class FairseqTransformerHub(GeneratorHubInterface):
             return jac_out_wrt_inp * self_norm.weight[None, :, None, None]
         inp = self.layer_inputs[name[0]][0][0].squeeze(1)
         out = self.layer_outputs[name[0]][0].squeeze(1)
-        print(name[0], inp, name[0], out)
+        #print(name[0], inp, name[0], out)
 
         flat_inp = torch.reshape(inp, [-1, inp.shape[-1]]) # shape [inp_size, *dims]
         
@@ -352,7 +352,7 @@ class FairseqTransformerHub(GeneratorHubInterface):
         inp = self.layer_inputs[name[0]][0][0].squeeze(1)
         out = self.layer_outputs[name[0]][0].squeeze(1)
         # inp: [*dims, inp_size], out: [*dims, out_size]
-        print(name[0], inp, name[0], out)
+        #print(name[0], inp, name[0], out)
 
         linear_self = eval(name[1])
 
@@ -371,10 +371,78 @@ class FairseqTransformerHub(GeneratorHubInterface):
         return input_relevance
 
     def relprop_attn(self, R, name):
-        if name[1].split('.')[-1] == 'encoder_attn':
-            return {'query_inp':R, 'kv_inp':R}
+        #if name[1].split('.')[-1] == 'encoder_attn':
+        #    return {'query_inp':R, 'kv_inp':R}
+        #else:
+        #    return R
+        def _split_heads(x, num_heads):
+            """
+            Split channels (dimension 3) into multiple heads (dimension 1)
+            input: (batch_size * ninp * inp_dim)
+            output: (batch_size * n_heads * ninp * (inp_dim/n_heads))
+            """
+            old_shape = [int(i) for i in x.shape]
+            dim_size = old_shape[-1]
+            new_shape = old_shape[:-1] + [num_heads] + [dim_size // num_heads if dim_size else None]
+            ret = torch.reshape(x, old_shape[:-1] + [num_heads, old_shape[-1] // num_heads])
+            ret = torch.reshape(ret, new_shape)
+            return torch.transpose(ret, 1, 2)  # [batch_size * n_heads * ninp * (hid_dim//n_heads)]
+        attn_self = eval(name[1])
+        
+        R = self.relprop_ffn(R, [x + '.out_proj' for x in name])
+        R_split = _split_heads(R, attn_self.num_heads)
+
+        # note: we apply relprop for each independent sample and head in order to avoid quadratic memory growth
+        print(self.layer_outputs.keys())
+        q = self.layer_outputs[name[0]+'.q_proj'][0]
+        k = self.layer_outputs[name[0]+'.k_proj'][0]
+        v = self.layer_outputs[name[0]+'.v_proj'][0]
+        q, k = map(
+            lambda x: rearrange(
+                x,
+                't b (n_h h_d) -> (b n_h) t h_d',
+                n_h=attn_self.num_heads,
+                h_d=attn_self.head_dim
+            ),
+            (q, k)
+        ) 
+        attn_weights = torch.bmm(q, k.transpose(1, 2))
+        if  'decoder' in name[0] and 'self_attn' in name[0]:
+            attn_mask = torch.triu(torch.ones_like(attn_weights), 1)
         else:
-            return R
+            attn_mask = torch.zeros_like(attn_weights)
+        
+        q_flat, k_flat, v_flat = q, k, v
+        dim_per_head = v_flat.shape[-1]
+        batch_size, n_heads, n_q = R_split.shape[0], R_split.shape[1], R_split.shape[2]
+        n_kv = flat_attn_mask.shape[2]
+        R_flat = torch.reshape(R_split, [-1, n_q, dim_per_head])
+        # ^-- *_flat variables are of shape: [(batch * n_heads), n_q, dim per head]
+        
+        #attn_jacobian = self._attn_head_jacobian_simple if LRP.consider_attn_constant else self._attn_head_jacobian
+        attn_jacobian = None
+        flat_relevances = tf.map_fn(
+            lambda i: LRP.relprop(
+                lambda q, k, v: self.attention_core(q, k, v, flat_attn_mask[i, None]),
+                R_flat[i, None], q_flat[i, None], k_flat[i, None], v_flat[i, None],
+                jacobians=None, #attn_jacobian(q_flat[i, None], k_flat[i, None], v_flat[i, None], flat_attn_mask[i, None]),
+                batch_axes=(0,)),
+            elems=tf.range(tf.shape(q_flat)[0]), dtype=[q_flat.dtype, k_flat.dtype, v_flat.dtype],
+            parallel_iterations=1,  # note: more parallel_iterations causes slight speed-up at the cost of more RAM
+        )
+        Rq, Rk, Rv = [self._combine_heads(tf.reshape(rel_flat, [batch_size, n_heads, -1, dim_per_head]))
+                      for rel_flat in flat_relevances]
+        Rq, Rk, Rv = LRP.rescale(R, Rq, Rk, Rv, batch_axes=(0,))
+
+        if rec.get_activation('is_combined'):
+            Rqkv = tf.concat([Rq, Rk, Rv], axis=2)  # [batch, time, 3 * hid_size]
+            Rinp = self.combined_conv.relprop(Rqkv)
+            return Rinp
+        else:
+            Rkv = tf.concat([Rk, Rv], axis=2)  # [batch, time, 2 * hid_size]
+            Rkvinp = self.kv_conv.relprop(Rkv)
+            Rqinp = self.query_conv.relprop(Rq)
+            return {'query_inp': Rqinp, 'kv_inp': Rkvinp}
     
     def get_name(self, i, string, enc_dec):
         return (f'models.0.{enc_dec}.layers.{i}.{string}', f'self.models[0].{enc_dec}.layers[{i}].{string}')
