@@ -6,22 +6,25 @@ import torch
 #from ..ops import record_activations as rec
 
 
-def jacobian(out, inps):
+def jacobian(out, inps, function):
     """
     :param out: a single tensor functionally dependent on all of inps
     :param inps: list or tuple of tensors w.r.t. which to compute the jacobian
     :returns: a list of same length as inps, where i-th tensor has shape [*out.shape, *inps[i].shape]
     :note: for tf 1.10+ use from tensorflow.python.ops.parallel_for.gradients import jacobian
     """
-    flat_out = torch.reshape(out, [-1])
-    flat_jac_components = []
-    for i in range(flat_out.shape[0]):
-        flat_jac_components.append(torch.gradients(flat_out[i], inps))
-
-    jac_components = [torch.reshape(flat_jac, torch.concat([out.shape, inp.shape], axis=0))
-                      for flat_jac, inp in zip(flat_jac_components, inps)]
+    with torch.enable_grad():
+        flat_out = torch.reshape(out, [-1])
+        flat_jac_components = []    
+        #print(out.shape)
+        #return [torch.ones( list(out.shape)+ list(inp.shape)) for inp in inps]
+        #for i in range(flat_out.shape[0]):
+        flat_jac_components = torch.autograd.functional.jacobian(function, tuple(inps))#, retain_graph=True))        print(flat_jac_components[0][0].shape)
+        #flat_jac_components = torch.stack(flat_jac_components)
+        #print('jac', flat_jac_components)
+        jac_components = [torch.reshape(flat_jac, list(out.shape)+ list(inp.shape))
+                        for flat_jac, inp in zip(flat_jac_components, inps)]
     return jac_components
-
 
 class LRP:
     """ Helper class for layerwise relevance propagation """
@@ -48,10 +51,10 @@ class LRP:
         :param jacobians: optional pre-computed jacobians to speed up computation, same as jacobians(function(*inps), inps)
 
         """
-        with torch.no_grad():
+        with torch.enable_grad():
             assert len(inps) > 0, "please provide at least one input"
             alpha, beta, eps = cls.alpha, cls.beta, cls.eps
-            inps = [inp for inp in inps]
+            inps = [inp.clone().requires_grad_() for inp in inps]
             reference_inputs = reference_inputs or tuple(map(torch.zeros_like, inps))
             assert len(reference_inputs) == len(inps)
             output = function(*inps)
@@ -59,14 +62,14 @@ class LRP:
             assert isinstance(output, torch.Tensor) and isinstance(reference_output, torch.Tensor)
             flat_output_relevance = torch.reshape(output_relevance, [-1])
             output_size = flat_output_relevance.shape[0]
-            
+            #print('computing jacobians', function)
             # 1. compute jacobian w.r.t. all inputs
-            jacobians = jacobians if jacobians is not None else jacobian(output, inps)
+            jacobians = jacobians if jacobians is not None else jacobian(output, inps, function)
             # ^-- list of [*output_dims, *input_dims] for each input
             assert len(jacobians) == len(inps)
-
             jac_flat_components = [torch.reshape(jac, [output_size, -1]) for jac in jacobians]
             # ^-- list of [output_size, input_size] for each input
+            
             flat_jacobian = torch.cat(jac_flat_components, axis=-1)  # [output_size, combined_input_size]
             # 2. multiply jacobian by input to get unnormalized relevances, add bias
             flat_input = torch.cat([torch.reshape(inp, [-1]) for inp in inps], axis=-1)  # [combined_input_size]
@@ -75,7 +78,6 @@ class LRP:
             input_size_per_sample = flat_reference_input.shape[0] // num_samples
 
             flat_bias_impact = torch.reshape(reference_output, [-1]) / float(input_size_per_sample)
-            #print(flat_jacobian.shape, flat_input[None, :].shape)
             flat_impact = flat_bias_impact[:, None] + flat_jacobian * (flat_input - flat_reference_input)[None, :]
             # ^-- [output_size, combined_input_size], aka z_{j<-i}
             
@@ -107,11 +109,9 @@ class LRP:
                 inp_relevance.view(inp.shape)
                 input_relevances.append(inp_relevance)
                 offset = offset + inp_size
-            #print(input_relevances, input_relevances[0].shape)
-        #import gc
-        #gc.collect()
-
-        return cls.rescale(output_relevance, *input_relevances, batch_axes=batch_axes, **kwargs)
+            
+            #print('output_relevances', input_relevances)
+            return cls.rescale(output_relevance, *input_relevances, batch_axes=batch_axes, **kwargs)
 
     @classmethod
     def rescale(cls, reference, *inputs, batch_axes=(0,)):
