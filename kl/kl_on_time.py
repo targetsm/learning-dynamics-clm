@@ -51,6 +51,11 @@ lm_pd.set_index(0, inplace=True)
 lm_pd.sort_index(inplace=True)
 tm_pd.set_index(0, inplace=True)
 tm_pd.sort_index(inplace=True)
+
+kl_list = []
+kl_unigram_list = []
+kl_bigram_list = []
+unigram_prob = np.array(list(unigram.values()))
 for i in range(n_samples):
     kl_loc = 0
     kl_loc_unigram = 0
@@ -61,7 +66,6 @@ for i in range(n_samples):
     length = len(lm_scores)
     for j in range(length):
         kl_loc += np.sum(np.multiply(np.exp(lm_scores[j]),(lm_scores[j] - tm_scores[j])))
-        unigram_prob = np.array(list(unigram.values()))
         kl_loc_unigram += np.sum(np.multiply(unigram_prob,(np.log(unigram_prob) - tm_scores[j])))
         if j == 0:
             bigram_prob = bigram[inv_idx['</s>'], :]
@@ -70,20 +74,24 @@ for i in range(n_samples):
         else:
             bigram_prob = bigram[inv_idx[tokens[j-1]],:]
         kl_loc_bigram += np.sum(np.multiply(bigram_prob,(np.log(bigram_prob) - tm_scores[j])))
-    kl += kl_loc / length
-    kl_unigram += kl_loc_unigram / length
-    kl_bigram += kl_loc_bigram / length
+    kl_list.append(kl_loc / length)
+    kl_unigram_list.append(kl_loc_unigram / length)
+    kl_bigram_list.append(kl_loc_bigram / length)
         
-kl = kl / n_samples
-kl_unigram = kl_unigram  / n_samples
-kl_bigram = kl_bigram  / n_samples
+kl = np.mean(kl_list)
+kl_se = np.std(kl_list)/math.sqrt(len(kl_list))
+kl_unigram = np.mean(kl_unigram_list)
+kl_unigram_se = np.std(kl_unigram_list)/math.sqrt(len(kl_unigram_list))
+kl_bigram = np.mean(kl_bigram_list)
+kl_bigram_se = np.std(kl_bigram_list)/math.sqrt(len(kl_bigram_list))
 
-print(ckpt, 'kl-divergence:', kl)
-kl_dict[ckpt] = kl
-print(ckpt, 'kl-divergence unigram:', kl_unigram)
-kl_dict_unigram[ckpt] = kl_unigram
-print(ckpt, 'kl-divergence bigram:', kl_bigram)
-kl_dict_bigram[ckpt] = kl_bigram
+
+print(ckpt, 'kl-divergence:', kl, kl_se)
+kl_dict[ckpt] = (kl, kl_se)
+print(ckpt, 'kl-divergence unigram:', kl_unigram, kl_unigram_se)
+kl_dict_unigram[ckpt] = (kl_unigram, kl_unigram_se)
+print(ckpt, 'kl-divergence bigram:', kl_bigram, kl_bigram_se)
+kl_dict_bigram[ckpt] = (kl_bigram, kl_bigram_se)
 
 #kl_dict = {int(k):v for k,v in kl_dict.items()}
 #kl_dict_unigram = {int(k):v for k,v in kl_dict_unigram.items()}

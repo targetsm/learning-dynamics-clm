@@ -4,29 +4,29 @@ import numpy
 
 with open('kl_dict.pkl', 'rb') as f:
     kl_dict_lm = pickle.load(f)
-    list_lm = sorted(kl_dict_lm.items()) # sorted by key, return a list of tuples
+    list_lm = sorted([(k, v[0], v[1]) for k,v in kl_dict_lm.items()])
 with open('kl_dict_unigram.pkl', 'rb') as f:
     kl_dict_unigram = pickle.load(f)
-    list_unigram = sorted(kl_dict_unigram.items())
+    list_unigram = sorted([(k, v[0], v[1]) for k,v in kl_dict_unigram.items()])
 with open('kl_dict_bigram.pkl', 'rb') as f:
     kl_dict_bigram = pickle.load(f)
-    list_bigram = sorted(kl_dict_bigram.items())
+    list_bigram = sorted([(k, v[0], v[1]) for k,v in kl_dict_bigram.items()])
 
 fig, ax1 = plt.subplots()
-ax1.plot(*zip(*list_lm), linestyle='-', marker='.', label='lm')
-ax1.plot(*zip(*list_unigram), linestyle='-', marker='.', label='unigram')
-ax1.plot(*zip(*list_bigram), linestyle='-', marker='.', label='bigram')
+ax1.errorbar(*zip(*list_lm), capsize=4, linestyle='-', marker='.', label='lm')
+ax1.errorbar(*zip(*list_unigram), capsize=4, linestyle='-', marker='.', label='unigram')
+ax1.errorbar(*zip(*list_bigram), capsize=4, linestyle='-', marker='.', label='bigram')
 ax1.legend()
 ax1.grid(True)
 plt.title("Test set KL divergence of TM & LM after the same amount \n of training steps")
 ax1.set_xlabel("# steps")
 ax1.set_ylabel("kl-divergence")
-plt.savefig('kl.png')
+plt.savefig('kl.pdf')
 plt.xscale('log')
 plt.title("Test set KL divergence of TM & LM after the same amount \n of training steps (lin-log)")
 ticks = 10**numpy.arange(2,6)
 plt.xticks(ticks, ticks)
-plt.savefig('kl_log.png')
+plt.savefig('kl_log.pdf')
 
 with open('../alti/transformer-contributions-nmt-v2/alti_results.pkl', 'rb') as f:
     alti_dict = pickle.load(f)
@@ -49,11 +49,11 @@ ax1.grid(True, axis='both')
 plt.title('ALTI+ mean source contributions and KL divergence of TM and LM', loc='center', wrap=True)
 ax1.legend()
 ax2.legend()
-plt.savefig('kl_plus_alti.png')
+plt.savefig('kl_plus_alti.pdf')
 
 plt.xscale('log')
 plt.title('ALTI+ mean source contributions and KL divergence of TM and LM (lin-log)', loc='center', wrap=True)
 ticks = 10**numpy.arange(2,6)
 plt.xticks(ticks, ticks)
-plt.savefig('kl_plus_alti_log.png')
+plt.savefig('kl_plus_alti_log.pdf')
 
