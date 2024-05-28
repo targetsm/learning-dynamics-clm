@@ -37,18 +37,20 @@ red_color = '#B85450'
 #       Also add lists for results storing
 
 alti_dict = dict()
-directory = "/cluster/scratch/ggabriel/ma/tm/checkpoints/"
+#directory = "/cluster/scratch/ggabriel/ma/tm/checkpoints/"
+directory = "./small_model/checkpoints/"
 dir_out = './' # set the directory to save the results
 result = {}
 
 for f in os.listdir(os.fsencode(directory)):
+    
     filename = os.fsdecode(f)
     print(filename)
     result[filename] = []
     
     hub = FairseqTransformerHub.from_pretrained(
         checkpoint_dir=directory,
-        checkpoint_file=filename,
+        checkpoint_file="checkpoint_last.pt",
         data_name_or_path="../data-bin/iwslt14.sep.tokenized.de-en/",
         )
     
@@ -95,9 +97,7 @@ for f in os.listdir(os.fsencode(directory)):
             predicted_sentence = hub.decode(pred_tensor, hub.task.tgt_dict)
             pred_sent = hub.decode(pred_tensor, hub.task.tgt_dict, as_string=True)
             #print(f"Predicted sentence: \t {pred_sent}")
-        
-        #res = hub.compute_relevances(src_tok, tgt_tok, log_probs, layer_inputs, layer_outputs, pred_tensor)
-        #result[filename].append(res)
+        print(source_sentence)
         R_ = torch.zeros(log_probs.shape)
         inp_lrp = []
         out_lrp = []
@@ -112,8 +112,11 @@ for f in os.listdir(os.fsencode(directory)):
             inp_lrp.append(R_inp[0])
             out_lrp.append(R_out_uncrop[0])        
             torch.cuda.empty_cache()
-            print(R_inp[0], R_out_uncrop[0])
+            print(R_inp[0], torch.sum(R_inp), R_out_uncrop[0], torch.sum(R_out_uncrop))
         result[filename].append({'src': source_sentence, 'dst': target_sentence,
                    'inp_lrp': np.array(inp_lrp), 'out_lrp': np.array(out_lrp)})
         print(result[filename])
+        break
+    break
+import pickle
 pickle.dump(result, open(dir_out + 'lrp_results', 'wb'))

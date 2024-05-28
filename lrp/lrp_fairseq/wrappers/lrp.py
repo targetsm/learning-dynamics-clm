@@ -80,7 +80,6 @@ class LRP:
             flat_bias_impact = torch.reshape(reference_output, [-1]) / float(input_size_per_sample)
             flat_impact = flat_bias_impact[:, None] + flat_jacobian * (flat_input - flat_reference_input)[None, :]
             # ^-- [output_size, combined_input_size], aka z_{j<-i}
-            
             if cls.use_alpha_beta:
             # 3. normalize positive and negative relevance separately and add them with coefficients
                 flat_positive_impact = torch.clamp(flat_impact, min=0)
@@ -96,10 +95,9 @@ class LRP:
                 flat_impact_normalizer += eps * (1. - 2. * float(torch.less(flat_impact_normalizer, 0)))
                 flat_total_relevance_transition = flat_impact / flat_impact_normalizer
                 # note: we do not use tf.sign(z) * eps because tf.sign(0) = 0, so zeros will not go away
-
+            flat_input_relevance_better = torch.matmul(flat_output_relevance, flat_total_relevance_transition)
             flat_input_relevance = torch.einsum('o,oi->i', flat_output_relevance, flat_total_relevance_transition)
             # ^-- [combined_input_size]
-            
             # 5. unpack flat_inp_relevance back into individual tensors
             input_relevances = []
             offset = 0 # tf.constant(0, dtype=output_size.dtype)
@@ -110,18 +108,23 @@ class LRP:
                 input_relevances.append(inp_relevance)
                 offset = offset + inp_size
             
-            #print('output_relevances', input_relevances)
+            #print('input_relevances', [torch.sum(inp) for inp in input_relevances])
+            #print(torch.sum(output_relevance))
             return cls.rescale(output_relevance, *input_relevances, batch_axes=batch_axes, **kwargs)
 
     @classmethod
     def rescale(cls, reference, *inputs, batch_axes=(0,)):
         with torch.no_grad():
+            #print(batch_axes, reference.shape, inputs[0].shape)
             assert isinstance(batch_axes, (tuple, list))
+            #print('input', inputs)
             get_summation_axes = lambda tensor: tuple(i for i in range(len(tensor.shape)) if i not in batch_axes)
             ref_scale = torch.sum(abs(reference), dim=get_summation_axes(reference), keepdim=True)
             inp_scales = [torch.sum(abs(inp), dim=get_summation_axes(inp), keepdim=True) for inp in inputs]
+            #ref_scale = torch.sum(abs(reference))
             total_inp_scale = sum(inp_scales) + cls.eps
-            inputs = [inp * (ref_scale / total_inp_scale) for inp in inputs]
+            inputs = [inputs[i] * (ref_scale / (inp_scales[i]+cls.eps)) for i in range(len(inputs))]
+            #print([torch.sum(inps) for inps in inputs])
         return inputs[0] if len(inputs) == 1 else inputs
 
 

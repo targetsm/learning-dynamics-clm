@@ -20,8 +20,8 @@ gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.99, allow_growth=T
 sess = tf.InteractiveSession(config=tf.ConfigProto(gpu_options=gpu_options))
 
 hp = {
-     "num_layers": 4,
-     "num_heads": 4,
+     "num_layers": 2,
+     "num_heads": 2,
      "ff_size": 128,
      "ffn_type": "conv_relu",
      "hid_size": 128,
@@ -95,6 +95,10 @@ with rec.recording_activations() as saved_activations, dropout_scope(False):
     R = model.loss._rdo_to_logits.relprop(R_)
     R = model.transformer.relprop_decode(R)
     
+    print_op = tf.Print(R['emb_out'], [R['emb_out']], message='testtesttesttest')
+    with tf.control_dependencies([print_op]):
+      out = tf.add(R['emb_out'], R['emb_out'])
+    
     R_out = tf.reduce_sum(abs(R['emb_out']), axis=-1)
     R_inp = tf.reduce_sum(abs(model.transformer.relprop_encode(R['enc_out'])), axis=-1)
     R_out_uncrop = tf.reduce_sum(abs(R['emb_out_before_crop']), axis=-1)
@@ -114,10 +118,12 @@ for elem in zip(test_src, test_dst):
     for token_pos in range(feed_dict['out'].shape[1]):
         print(elem, token_pos, feed)
         feed[target_position] = token_pos
-        res_tot, res_inp, res_out, r_uncrop = sess.run((R, R_inp, R_out, R_out_uncrop), feed)
-        print(res_tot['emb_out'].shape, res_tot['enc_out'].shape)
-        print(res_out, np.array(res_out[0]).sum(-1))
-        print(r_uncrop.shape, r_uncrop, np.array(r_uncrop[0]).sum(-1))
+        res_tot, res_inp, res_out, r_uncrop, r_, log, b= sess.run((R, R_inp, R_out, R_out_uncrop, R_, logits, out), feed)
+        print('R_', r_.shape, np.nonzero(r_), r_[np.nonzero(r_)])
+        print(log.shape)
+        print(R)
+        print(b)
+        exit()
         inp_lrp.append(res_inp[0])
         out_lrp.append(r_uncrop[0])
     result.append({'src': src, 'dst': dst,

@@ -69,12 +69,12 @@ else:
 MODEL_HP=$(/usr/bin/env python3 -c '
 
 hp = {
-     "num_layers": 6,
-     "num_heads": 8,
-     "ff_size": 2048,
+     "num_layers": 2,
+     "num_heads": 2,
+     "ff_size": 128,
      "ffn_type": "conv_relu",
-     "hid_size": 512,
-     "emb_size": 512,
+     "hid_size": 128,
+     "emb_size": 128,
      "res_steps": "nlda", 
     
      "rescale_emb": True,
