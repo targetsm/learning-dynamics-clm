@@ -1,0 +1,10 @@
+data/
+.coverage
+build
+dist
+__pycache__
+sacrebleu.egg-info
+.sacrebleu
+*~
+.DS_Store
+.idea/
