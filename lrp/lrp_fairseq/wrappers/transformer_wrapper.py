@@ -470,7 +470,7 @@ class FairseqTransformerHub(GeneratorHubInterface):
         Rq, Rk, Rv = [_combine_heads(torch.reshape(rel_flat, [batch_size, n_heads, -1, dim_per_head]))
                       for rel_flat in flat_relevances]
         Rq, Rk, Rv = LRP.rescale(R, Rq, Rk, Rv, batch_axes=(0,))
-
+        print(Rq, Rk, Rv)
         
         if is_combined:
             Rq = self.relprop_ffn(Rq, [x + '.q_proj' for x in name])
@@ -501,36 +501,36 @@ class FairseqTransformerHub(GeneratorHubInterface):
         R_enc_scale = 0.0
         R_orig = R
         for i in range(len(self.models[0].decoder.layers))[::-1]:
-            print(i, torch.sum(R))
+            print(i, torch.sum(R), R)
             R = self.relprop_norm(R, self.get_name(i,'final_layer_norm',  'decoder'))
-            print('final_norm', torch.sum(R))
+            print('final_norm', torch.sum(R), R)
             R, R_res = self.relprop_add(R, self.get_name(i,'fc1', 'decoder'), self.get_name(i,'fc2', 'decoder'))
-            print('add', torch.sum(R), torch.sum(R_res))
+            print('add', torch.sum(R), torch.sum(R_res), R)
             R = self.relprop_ffn(R, self.get_name(i,'fc2', 'decoder'))
             R = self.relprop_ffn(R, self.get_name(i,'fc1', 'decoder'))
-            print('ffn', torch.sum(R))
+            print('ffn', torch.sum(R), R)
             R = self.relprop_residual(R, R_res, self.get_name(i,'fc1', 'decoder'), self.get_name(i,'fc2', 'decoder'))
-            print('residual', torch.sum(R))
+            print('residual', torch.sum(R), R)
             R = self.relprop_norm(R, self.get_name(i,'encoder_attn_layer_norm', 'decoder'))
-            print('norm', torch.sum(R))
+            print('norm', torch.sum(R), R)
             R, R_res = self.relprop_add(R, self.get_name(i,'encoder_attn.q_proj', 'decoder'), self.get_name(i,'encoder_attn.out_proj', 'decoder'))
-            print('add', torch.sum(R), torch.sum(R_res))
+            print('add', torch.sum(R), torch.sum(R_res), R, R_res)
             #possibly another layernorm here attn_ln 
             relevance_dict = self.relprop_attn(R, self.get_name(i,'encoder_attn', 'decoder'))
             R = relevance_dict['query_inp']
             R_enc += relevance_dict['kv_inp']
             R_enc_scale += torch.sum(torch.abs(relevance_dict['kv_inp']))
-            print('encoder_attn', torch.sum(R), torch.sum(relevance_dict['kv_inp']))
+            print('encoder_attn', torch.sum(R), torch.sum(relevance_dict['kv_inp']), R, relevance_dict['kv_inp'])
             R = self.relprop_residual(R, R_res, self.get_name(i,'encoder_attn', 'decoder'), self.get_name(i,'encoder_attn', 'decoder'))
-            print('residual', torch.sum(R))
+            print('residual', torch.sum(R), R)
             R = self.relprop_norm(R, self.get_name(i,'self_attn_layer_norm', 'decoder'))
-            print('norm', torch.sum(R))
+            print('norm', torch.sum(R), R)
             R, R_res = self.relprop_add(R, self.get_name(i,'self_attn.q_proj', 'decoder'), self.get_name(i,'self_attn.out_proj', 'decoder'))
-            print('add', torch.sum(R), torch.sum(R_res))
+            print('add', torch.sum(R), torch.sum(R_res), R, R_res)
             R = self.relprop_attn(R, self.get_name(i,'self_attn', 'decoder'), True)
-            print('self_attn', torch.sum(R))
+            print('self_attn', torch.sum(R), R)
             R = self.relprop_residual(R, R_res, self.get_name(i,'self_attn', 'decoder'), self.get_name(i,'self_attn', 'decoder'))
-            print('residual', torch.sum(R))
+            print('residual', torch.sum(R), R)
         # shift left: compensate for right shift
         R_crop = F.pad(input=R, pad=(0, 0, 0, 1, 0, 0), mode='constant', value=0)[:, 1:, :]
         return {'emb_out': R_crop, 'enc_out': R_enc * R_enc_scale / torch.sum(torch.abs(R_enc)),
@@ -540,24 +540,24 @@ class FairseqTransformerHub(GeneratorHubInterface):
     def relprop_encode(self, R):
         """ propagates relevances from enc_out to emb_inp """
         for i in range(len(self.models[0].encoder.layers))[::-1]:
-            print('encoder', i)
+            print('encoder', i, R)
             R = self.relprop_norm(R, self.get_name(i,'final_layer_norm', 'encoder'))
-            print('norm', torch.sum(R))
+            print('norm', torch.sum(R), R)
             R, R_res = self.relprop_add(R, self.get_name(i,'fc1', 'encoder'), self.get_name(i,'fc2', 'encoder'))
-            print('add', torch.sum(R), torch.sum(R_res))
+            print('add', torch.sum(R), torch.sum(R_res), R, R_res)
             R = self.relprop_ffn(R, self.get_name(i,'fc2', 'encoder'))
-            print('fc2', torch.sum(R))
+            print('fc2', torch.sum(R), R)
             R = self.relprop_ffn(R, self.get_name(i,'fc1', 'encoder'))
-            print('fc1', torch.sum(R))
+            print('fc1', torch.sum(R), R)
             R = self.relprop_residual(R, R_res, self.get_name(i,'fc1', 'encoder'), self.get_name(i,'fc2', 'encoder'))
-            print('residual', torch.sum(R))
+            print('residual', torch.sum(R), R)
             R = self.relprop_norm(R, self.get_name(i,'self_attn_layer_norm', 'encoder'))
-            print('norm', torch.sum(R))
+            print('norm', torch.sum(R), R)
             R, R_res = self.relprop_add(R, self.get_name(i,'self_attn.q_proj', 'encoder'), self.get_name(i,'self_attn.out_proj', 'encoder'))
-            print('add', torch.sum(R), torch.sum(R_res))
+            print('add', torch.sum(R), torch.sum(R_res), R, R_res)
             R = self.relprop_attn(R, self.get_name(i,'self_attn', 'encoder'), True)
-            print('attn', torch.sum(R))
+            print('attn', torch.sum(R), R)
             R = self.relprop_residual(R, R_res, self.get_name(i,'self_attn', 'encoder'), self.get_name(i,'self_attn', 'encoder'))
-            print('norm', torch.sum(R))
+            print('norm', torch.sum(R), R)
         return R
 

@@ -113,6 +113,7 @@ for f in os.listdir(os.fsencode(directory)):
             out_lrp.append(R_out_uncrop[0])        
             torch.cuda.empty_cache()
             print(R_inp[0], torch.sum(R_inp), R_out_uncrop[0], torch.sum(R_out_uncrop))
+            exit()
         result[filename].append({'src': source_sentence, 'dst': target_sentence,
                    'inp_lrp': np.array(inp_lrp), 'out_lrp': np.array(out_lrp)})
         print(result[filename])

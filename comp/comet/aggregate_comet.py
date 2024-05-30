@@ -28,7 +28,7 @@ for subdir, dirs, files in os.walk(rootdir):
         elif line[0] == 'H':
             sys = line.split('\t')[-1]
             data_list.append({'src': src.replace(' ', '').replace('_', ' '), 'mt': sys.replace(' ', '').replace('_', ' '), 'ref':ref.replace(' ', '').replace('_', ' ')})
-            if len(data_list) == 100:
+            if len(data_list) == 1000:
                 break
     model_output = model.predict(data_list,  batch_size=16, num_workers=1)
     ckpt_dict[ckpt] = model_output

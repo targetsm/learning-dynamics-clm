@@ -95,12 +95,14 @@ with rec.recording_activations() as saved_activations, dropout_scope(False):
     R = model.loss._rdo_to_logits.relprop(R_)
     R = model.transformer.relprop_decode(R)
     
-    print_op = tf.Print(R['emb_out'], [R['emb_out']], message='testtesttesttest')
-    with tf.control_dependencies([print_op]):
-      out = tf.add(R['emb_out'], R['emb_out'])
-    
+    #print_op = tf.print(R['emb_out'], [R['emb_out']])
+    #with tf.control_dependencies([print_op]):
+    #  out = tf.add(R['emb_out'], R['emb_out'])
+    #out = None
     R_out = tf.reduce_sum(abs(R['emb_out']), axis=-1)
-    R_inp = tf.reduce_sum(abs(model.transformer.relprop_encode(R['enc_out'])), axis=-1)
+    encoder, print_enc = model.transformer.relprop_encode(R['enc_out'])
+    R['print_out'] += print_enc
+    R_inp = tf.reduce_sum(abs(encoder), axis=-1)
     R_out_uncrop = tf.reduce_sum(abs(R['emb_out_before_crop']), axis=-1)
 
 dir_out = './' # set the directory to save the results
@@ -116,13 +118,13 @@ for elem in zip(test_src, test_dst):
     inp_lrp = []
     out_lrp = []
     for token_pos in range(feed_dict['out'].shape[1]):
-        print(elem, token_pos, feed)
+        #print(elem, token_pos, feed)
         feed[target_position] = token_pos
-        res_tot, res_inp, res_out, r_uncrop, r_, log, b= sess.run((R, R_inp, R_out, R_out_uncrop, R_, logits, out), feed)
-        print('R_', r_.shape, np.nonzero(r_), r_[np.nonzero(r_)])
-        print(log.shape)
-        print(R)
-        print(b)
+        res_tot, res_inp, res_out, r_uncrop, r_, log = sess.run((R, R_inp, R_out, R_out_uncrop, R_, logits), feed)
+        #print('R_', r_.shape, np.nonzero(r_), r_[np.nonzero(r_)])
+        #print(log.shape)
+        #print(R)
+        #print(b)
         exit()
         inp_lrp.append(res_inp[0])
         out_lrp.append(r_uncrop[0])

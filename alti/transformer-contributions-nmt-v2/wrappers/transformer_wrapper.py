@@ -212,7 +212,6 @@ class FairseqTransformerHub(GeneratorHubInterface):
              
             for name, layer in self.named_modules():
                 handles[name] = layer.register_forward_hook(partial(save_activation, name))
-                
             src_tensor = src_tensor.unsqueeze(0).to(self.device)
             tgt_tensor = tgt_tensor.unsqueeze(0).to(self.device)
             
