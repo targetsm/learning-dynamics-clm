@@ -2,7 +2,7 @@ import os
 import torch
 
 # Select GPU
-#torch.cuda.set_device(0)
+#torch.cuda.set_device(7)
 #torch.cuda.current_device()
 
 import warnings
@@ -25,7 +25,7 @@ warnings.simplefilter('ignore')
 
 from dotenv import load_dotenv
 load_dotenv()
-device = "cuda" if torch.cuda.is_available() else "cpu"
+device = "cpu" # "cuda" if torch.cuda.is_available() else "cpu"
 
 data_sample = 'generate' # generate/interactive
 teacher_forcing = True # teacher forcing/free decoding
@@ -53,7 +53,7 @@ for f in os.listdir(os.fsencode(directory)):
         checkpoint_file="checkpoint_last.pt",
         data_name_or_path="../data-bin/iwslt14.sep.tokenized.de-en/",
         )
-    
+    hub.models[0].to('cpu')
     # Get sample from provided test data
     total_source_contribution = 0
     total_target_contribution = 0
