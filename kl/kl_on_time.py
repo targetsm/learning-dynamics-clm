@@ -97,12 +97,12 @@ kl_dict_bigram[ckpt] = (kl_bigram, kl_bigram_se)
 #kl_dict_unigram = {int(k):v for k,v in kl_dict_unigram.items()}
 #kl_dict_bigram = {int(k):v for k,v in kl_dict_bigram.items()}
 
-with open('kl_dict.pkl', 'wb') as f:
+with open('data/kl_dict.pkl', 'wb') as f:
     pickle.dump(kl_dict, f)
 
-with open('kl_dict_unigram.pkl', 'wb') as f:
+with open('data/kl_dict_unigram.pkl', 'wb') as f:
     pickle.dump(kl_dict_unigram, f)
 
-with open('kl_dict_bigram.pkl', 'wb') as f:
+with open('data/kl_dict_bigram.pkl', 'wb') as f:
     pickle.dump(kl_dict_bigram, f)
     
