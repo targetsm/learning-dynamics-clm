@@ -1,1 +1,0 @@
-model_output.system_score
