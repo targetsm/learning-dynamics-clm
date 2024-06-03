@@ -1,7 +1,17 @@
 #!/bin/bash
+ulimit -m 20000000
 source $HOME/ma/alti/venv_alti/bin/activate
-cd $SCRATCH/ma/tm_val/checkpoints
+workdir=/local/home/ggabriel/ma/models
+cd $workdir/tm/checkpoints
 
+if [ ! -d analysis ]; then
+   mkdir -p analysis
+   cp checkpoint_*_*.pt analysis
+   cd analysis
+   for filename in ./*; do echo $filename; mv $filename ${filename##*_}; echo ${filename##*_}; done
+fi
+
+cd $workdir/lm_trunc/checkpoints
 if [ ! -d analysis ]; then
    mkdir -p analysis
    cp checkpoint_*_*.pt analysis
@@ -9,28 +19,20 @@ if [ ! -d analysis ]; then
    for filename in ./*; do mv $filename ${filename##*_}; done
 fi
 
-cd $SCRATCH/ma/lm_trunc_val/checkpoints
-if [ ! -d analysis ]; then
-   mkdir -p analysis
-   cp checkpoint_*_*.pt analysis
-   cd analysis
-   for filename in ./*; do mv $filename ${filename##*_}; done
-fi
-
-cd $SCRATCH/ma
+cd $workdir
 mkdir -p evaluation
 
-for filename in $SCRATCH/ma/tm_val/checkpoints/analysis/*; do
+for filename in $workdir/tm/checkpoints/analysis/*; do
     filename=$(basename $filename .pt)
     echo $filename
-    fairseq-generate tm_val/data-bin/iwslt14.sep.tokenized.de-en \
-        --path tm_val/checkpoints/analysis/$filename.pt \
-        --batch-size 128 --beam 1\
+    CUDA_VISIBLE_DEVICES=3 fairseq-generate tm/data-bin/iwslt14.sep.tokenized.de-en \
+        --path tm/checkpoints/analysis/$filename.pt \
+        --batch-size 256 --beam 1\
 	--results-path evaluation/tm \
         --score-reference
-    fairseq-generate lm_trunc_val/data-bin/iwslt14.sep.tokenized.de-en \
-        --path lm_trunc_val/checkpoints/analysis/$filename.pt \
-        --batch-size 128 --beam 1 \
+    CUDA_VISIBLE_DEVICES=3 fairseq-generate lm_trunc/data-bin/iwslt14.sep.tokenized.de-en \
+        --path lm_trunc/checkpoints/analysis/$filename.pt \
+        --batch-size 256 --beam 1 \
 	--results-path evaluation/lm \
         --score-reference
     
@@ -45,8 +47,8 @@ for filename in $SCRATCH/ma/tm_val/checkpoints/analysis/*; do
     rm lm.txt lm.val
     
     cd $HOME/ma/kl
-    python kl_on_time.py $filename
-    cd $SCRATCH/ma
+    python -u kl_on_time_efficient.py $filename
+    cd $workdir
     rm -rf evaluation/*
 done
 
