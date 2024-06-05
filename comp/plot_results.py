@@ -12,7 +12,7 @@ with open('../kl/data/kl_dict_bigram.pkl', 'rb') as f:
     kl_dict_bigram = pickle.load(f)
     list_bigram = sorted([(k, v[0], v[1]) for k,v in kl_dict_bigram.items()])
 
-fig, axs = plt.subplots(5, 1, sharex=True)
+fig, axs = plt.subplots(6, 1, sharex=True)
 # Remove horizontal space between axes
 fig.subplots_adjust(hspace=0.08)
 
@@ -71,6 +71,22 @@ ax5.plot(x, y, linestyle='-', marker='.', label='test COMET')
 ax5.set_ylabel("COMET")
 ax5.grid()
 ax5.legend()
+
+ax6 = axs[5]
+with open('hallucinations/labse/labse.pkl', 'rb') as f:
+    labse_dict = pickle.load(f)
+labse_lowest = {int(ckpt):x[2] for ckpt, x in labse_dict.items()}
+labse_dict = {int(ckpt):x[0] for ckpt, x in labse_dict.items()}
+lists = sorted(labse_dict.items()) # sorted by key, return a list of tuples
+lists_lowest = sorted(labse_lowest.items())
+x, y = zip(*lists) # unpack a list of pairs into two tuples
+ax6.plot(x, y, linestyle='-', marker='.', label='laBSE cos_sim')
+lists = sorted(labse_lowest.items())
+x, y = zip(*lists) # unpack a list of pairs into two tuples
+ax6.plot(x, y, linestyle='-', marker='.', label='laBSE low 100')
+ax6.set_ylabel("Similarity")
+ax6.grid()
+ax6.legend()
 
 fig.suptitle('ALTI+ mean source contributions and KL divergence of TM and LM', wrap=True)
 
