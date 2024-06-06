@@ -23,7 +23,8 @@ for key in file_dict.keys():
             similarity_dict = pickle.load(f)
     except:
         similarity_dict = {}
-
+    if key in similarity_dict:
+        continue
     print(key)
     lines = open(file_dict[key], 'r').readlines()
     targets = [x.split('\t')[-1][:-1].replace(' ', '').replace('▁', ' ') for x in lines if x[0] == 'T']

@@ -1,7 +1,7 @@
 import os
 import matplotlib.pyplot as plt
 from sacrebleu.metrics import BLEU#, CHRF, TER
-rootdir = '/cluster/scratch/ggabriel/ma/tm_val/evaluation_generate/'
+rootdir = '/local/home/ggabriel/ma/models/tm/evaluation_generate/'
 
 from comet import download_model, load_from_checkpoint
 

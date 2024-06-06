@@ -1,12 +1,13 @@
 #!/bin/bash
+ulimit -m 12000000
 source $HOME/ma/alti/venv_alti/bin/activate
-cd $SCRATCH/ma/tm_val
+cd $HOME/ma/models/tm
 mkdir -p evaluation_generate
 
 for filename in checkpoints/analysis/*; do
     echo $filename
-    fairseq-generate data-bin/iwslt14.sep.tokenized.de-en \
+    CUDA_VISIBLE_DEVICES=3 fairseq-generate data-bin/iwslt14.sep.tokenized.de-en \
         --path $filename \
-        --batch-size 128 --beam 5\
+        --batch-size 256 --beam 5\
         --results-path evaluation_generate/$(basename $filename .pt)
 done

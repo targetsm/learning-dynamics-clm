@@ -78,10 +78,9 @@ with open('hallucinations/labse/labse.pkl', 'rb') as f:
 labse_lowest = {int(ckpt):x[2] for ckpt, x in labse_dict.items()}
 labse_dict = {int(ckpt):x[0] for ckpt, x in labse_dict.items()}
 lists = sorted(labse_dict.items()) # sorted by key, return a list of tuples
-lists_lowest = sorted(labse_lowest.items())
 x, y = zip(*lists) # unpack a list of pairs into two tuples
 ax6.plot(x, y, linestyle='-', marker='.', label='laBSE cos_sim')
-lists = sorted(labse_lowest.items())
+lists = sorted(labse_lowest.items())   
 x, y = zip(*lists) # unpack a list of pairs into two tuples
 ax6.plot(x, y, linestyle='-', marker='.', label='laBSE low 100')
 ax6.set_ylabel("Similarity")
@@ -90,7 +89,7 @@ ax6.legend()
 
 fig.suptitle('ALTI+ mean source contributions and KL divergence of TM and LM', wrap=True)
 
-fig.set_size_inches(7,9)
+fig.set_size_inches(7,10)
 plt.savefig('kl_plus_alti.pdf')
 
 plt.xscale('log')
