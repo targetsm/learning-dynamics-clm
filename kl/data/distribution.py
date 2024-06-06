@@ -2,7 +2,7 @@ import numpy as np
 import pickle
 
 #vocab_en = open('/cluster/home/ggabriel/ma/data/sentp/iwslt14.sep.tokenized.de-en/code.en.vocab', 'r').readlines()
-vocab_en = open('/cluster/scratch/ggabriel/ma/tm/data-bin/iwslt14.sep.tokenized.de-en/dict.en.txt', 'r').readlines()
+vocab_en = open('/local/home/ggabriel/ma/models/tm/data-bin/iwslt14.sep.tokenized.de-en/dict.en.txt', 'r').readlines()
 vocab_en.insert(0, "<pad> 0")
 vocab_en.insert(1, "</s> 0")
 vocab_en.insert(2, "<unk> 0")
@@ -15,7 +15,7 @@ bigram_en = np.zeros((vocab_size, vocab_size), np.int)
 
 print(vocab_idx)
 c = 0
-with open('/cluster/home/ggabriel/ma/data/sentp/iwslt14.sep.tokenized.de-en/train.en', 'r') as f_en:
+with open('/local/home/ggabriel/ma/data/sentp/iwslt14.sep.tokenized.de-en/train.en', 'r') as f_en:
     for line in f_en:
         tokens = [ '</s>'] + line[:-1].split(' ') + ['</s>']
         for i in range(1, len(tokens)):

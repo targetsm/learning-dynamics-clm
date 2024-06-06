@@ -29,6 +29,21 @@ plt.xticks(ticks, ticks)
 plt.savefig('plot/kl_log.pdf')
 
 
+with open('old_results/new_results/kl_dict.pkl', 'rb') as f:
+    kl_dict_lm_old = pickle.load(f)
+    list_lm_old = sorted([(k, v) for k,v in kl_dict_lm_old.items()])
+with open('old_results/new_results/kl_dict_unigram.pkl', 'rb') as f:
+    kl_dict_unigram_old = pickle.load(f)
+    list_unigram_old = sorted([(k, v) for k,v in kl_dict_unigram_old.items()])
+with open('old_results/new_results/kl_dict_bigram.pkl', 'rb') as f:
+    kl_dict_bigram_old = pickle.load(f)
+    list_bigram_old = sorted([(k, v) for k,v in kl_dict_bigram_old.items()])
+ax1.plot(*zip(*list_lm_old), linestyle='-', marker='.', label='lm_old')
+ax1.plot(*zip(*list_unigram_old), linestyle='-', marker='.', label='unigram_old')
+ax1.plot(*zip(*list_bigram_old), linestyle='-', marker='.', label='bigram_old')
+ax1.legend()
+plt.savefig('plot/kl_comp_log.pdf')
+
 #with open('../alti/transformer-contributions-nmt-v2/alti_results.pkl', 'rb') as f:
 #    alti_dict = pickle.load(f)
 #lists = sorted(alti_dict.items()) # sorted by key, return a list of tuples

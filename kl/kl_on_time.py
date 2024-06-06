@@ -11,33 +11,33 @@ from os.path import join, isfile
 import sys
 ckpt = int(sys.argv[1])
 print(ckpt)
-with open('unigram.pkl', 'rb') as f:
+with open('data/unigram.pkl', 'rb') as f:
     unigram = pickle.load(f)
-with open('bigram.pkl', 'rb') as f:
+with open('data/bigram.pkl', 'rb') as f:
     vocab_idx, inv_idx, bigram = pickle.load(f)
 
 
 try:
-    with open('kl_dict.pkl', 'rb') as f:
+    with open('data/kl_dict.pkl', 'rb') as f:
         kl_dict = pickle.load(f)
 
-    with open('kl_dict_unigram.pkl', 'rb') as f:
+    with open('data/kl_dict_unigram.pkl', 'rb') as f:
         kl_dict_unigram = pickle.load(f)
 
-    with open('kl_dict_bigram.pkl', 'rb') as f:
+    with open('data/kl_dict_bigram.pkl', 'rb') as f:
         kl_dict_bigram = pickle.load(f)
 except:
     kl_dict = dict()
     kl_dict_unigram = dict()
     kl_dict_bigram = dict()
 
-tm_pd = pd.read_csv(f'/cluster/scratch/ggabriel/ma/evaluation/scores_tm.txt', sep="\t", header=None)
-lm_pd = pd.read_csv(f'/cluster/scratch/ggabriel/ma/evaluation/scores_lm.txt', sep="\t", header=None)
+tm_pd = pd.read_csv(f'/local/home/ggabriel/ma/models/evaluation/scores_tm.txt', sep="\t", header=None)
+lm_pd = pd.read_csv(f'/local/home/ggabriel/ma/models/evaluation/scores_lm.txt', sep="\t", header=None)
 kl = 0
 kl_unigram = 0
 kl_bigram = 0
-f_lm = open(f'/cluster/scratch/ggabriel/ma/evaluation/lm/probs-test.npy', 'rb')
-f_tm = open(f'/cluster/scratch/ggabriel/ma/evaluation/tm/probs-test.npy', 'rb')
+f_lm = open(f'/local/home/ggabriel/ma/models/evaluation/lm/probs-test.npy', 'rb')
+f_tm = open(f'/local/home/ggabriel/ma/models/evaluation/tm/probs-test.npy', 'rb')
 tm_vals = []
 lm_vals = []
 n_samples = lm_pd.shape[0]
