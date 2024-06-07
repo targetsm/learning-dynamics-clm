@@ -25,7 +25,7 @@ warnings.simplefilter('ignore')
 
 from dotenv import load_dotenv
 load_dotenv()
-device = "cpu" # "cuda" if torch.cuda.is_available() else "cpu"
+device = "cuda" if torch.cuda.is_available() else "cpu"
 
 data_sample = 'generate' # generate/interactive
 teacher_forcing = True # teacher forcing/free decoding
@@ -38,11 +38,12 @@ red_color = '#B85450'
 
 alti_dict = dict()
 #directory = "/cluster/scratch/ggabriel/ma/tm/checkpoints/"
+#directory = "../../models/tm/checkpoints/analysis"
 directory = "./small_model/checkpoints/"
 dir_out = './' # set the directory to save the results
 result = {}
 
-for f in os.listdir(os.fsencode(directory)):
+for f in ["checkpoint_last.pt"]: #os.listdir(os.fsencode(directory)):
     
     filename = os.fsdecode(f)
     print(filename)
@@ -50,10 +51,9 @@ for f in os.listdir(os.fsencode(directory)):
     
     hub = FairseqTransformerHub.from_pretrained(
         checkpoint_dir=directory,
-        checkpoint_file="checkpoint_last.pt",
+        checkpoint_file=filename,
         data_name_or_path="../data-bin/iwslt14.sep.tokenized.de-en/",
         )
-    hub.models[0].to('cpu')
     # Get sample from provided test data
     total_source_contribution = 0
     total_target_contribution = 0
@@ -97,7 +97,7 @@ for f in os.listdir(os.fsencode(directory)):
             predicted_sentence = hub.decode(pred_tensor, hub.task.tgt_dict)
             pred_sent = hub.decode(pred_tensor, hub.task.tgt_dict, as_string=True)
             #print(f"Predicted sentence: \t {pred_sent}")
-        print(source_sentence)
+        #print(source_sentence)
         R_ = torch.zeros(log_probs.shape)
         inp_lrp = []
         out_lrp = []
@@ -112,12 +112,10 @@ for f in os.listdir(os.fsencode(directory)):
             inp_lrp.append(R_inp[0])
             out_lrp.append(R_out_uncrop[0])        
             torch.cuda.empty_cache()
-            print(R_inp[0], torch.sum(R_inp), R_out_uncrop[0], torch.sum(R_out_uncrop))
-            exit()
+            #print(R_inp[0], torch.sum(R_inp), R_out_uncrop[0], torch.sum(R_out_uncrop))
         result[filename].append({'src': source_sentence, 'dst': target_sentence,
                    'inp_lrp': np.array(inp_lrp), 'out_lrp': np.array(out_lrp)})
+        
         print(result[filename])
-        break
-    break
 import pickle
 pickle.dump(result, open(dir_out + 'lrp_results', 'wb'))

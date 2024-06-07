@@ -443,7 +443,8 @@ class FairseqTransformerHub(GeneratorHubInterface):
         ) 
         attn_weights = torch.bmm(q, k.transpose(1, 2))
         if  'decoder' in name[0] and 'self_attn' in name[0]:
-            flat_attn_mask = torch.triu(torch.ones_like(attn_weights), 1)
+            flat_attn_mask = torch.tril(torch.ones_like(attn_weights), 0)
+            #print('flat_attn_mask', flat_attn_mask)
         else:
             flat_attn_mask = torch.zeros_like(attn_weights)
         
@@ -470,12 +471,13 @@ class FairseqTransformerHub(GeneratorHubInterface):
         Rq, Rk, Rv = [_combine_heads(torch.reshape(rel_flat, [batch_size, n_heads, -1, dim_per_head]))
                       for rel_flat in flat_relevances]
         Rq, Rk, Rv = LRP.rescale(R, Rq, Rk, Rv, batch_axes=(0,))
-        print(Rq, Rk, Rv)
         
         if is_combined:
             Rq = self.relprop_ffn(Rq, [x + '.q_proj' for x in name])
             Rk = self.relprop_ffn(Rk, [x + '.k_proj' for x in name])
             Rv = self.relprop_ffn(Rv, [x + '.v_proj' for x in name])
+            #print('Rq', Rq, 'Rk', Rk, 'Rv', Rv)
+
             attn_scale = torch.sum(abs(Rq) + abs(Rk) + abs(Rv))
             Rinp = Rq + Rk + Rv
             Rinp = Rinp * original_scale / attn_scale
@@ -484,6 +486,8 @@ class FairseqTransformerHub(GeneratorHubInterface):
             Rq = self.relprop_ffn(Rq, [x + '.q_proj' for x in name])
             Rk = self.relprop_ffn(Rk, [x + '.k_proj' for x in name])
             Rv = self.relprop_ffn(Rv, [x + '.v_proj' for x in name])
+            #print('Rq', Rq, 'Rk', Rk, 'Rv', Rv)
+
             attn_scale = torch.sum(torch.abs(Rq)) + torch.sum(torch.abs(Rk)) + torch.sum(torch.abs(Rv))
             Rqinp = Rq * original_scale / attn_scale
             Rkvinp =  (Rk + Rv) * original_scale / attn_scale   
