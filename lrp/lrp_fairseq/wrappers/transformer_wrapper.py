@@ -270,7 +270,6 @@ class FairseqTransformerHub(GeneratorHubInterface):
                 return x
         residual_inp = self.layer_inputs[name_prev[0]][0][0].squeeze(1)
         residual_update = self.layer_outputs[name_next[0]][0].squeeze(1)
-        #print('relprop_add', name_next[0],  'update', residual_update, name_prev[0], 'inp', residual_inp)
 
         inputs = [residual_inp, residual_update]
         input_shapes = [x.shape for x in inputs]
@@ -517,6 +516,7 @@ class FairseqTransformerHub(GeneratorHubInterface):
             print('residual', torch.sum(R), R)
             R = self.relprop_norm(R, self.get_name(i,'encoder_attn_layer_norm', 'decoder'))
             print('norm', torch.sum(R), R)
+            exit()
             R, R_res = self.relprop_add(R, self.get_name(i,'encoder_attn.q_proj', 'decoder'), self.get_name(i,'encoder_attn.out_proj', 'decoder'))
             print('add', torch.sum(R), torch.sum(R_res), R, R_res)
             #possibly another layernorm here attn_ln 

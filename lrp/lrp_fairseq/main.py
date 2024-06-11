@@ -54,6 +54,7 @@ for f in ["checkpoint_last.pt"]: #os.listdir(os.fsencode(directory)):
         checkpoint_file=filename,
         data_name_or_path="../data-bin/iwslt14.sep.tokenized.de-en/",
         )
+    #hub.models[0].to('cuda')
     # Get sample from provided test data
     total_source_contribution = 0
     total_target_contribution = 0
@@ -105,6 +106,7 @@ for f in ["checkpoint_last.pt"]: #os.listdir(os.fsencode(directory)):
             R_ = torch.zeros([1] + list(log_probs.shape)) #shape same as original lrp
             R_[0, i,pred_tensor[i]] = 1
             R = hub.relprop_ffn(R_, ("models.0.decoder.output_projection", "self.models[0].decoder.output_projection")) #model.loss._rdo_to_logits.relprop(R_)
+            print(R)
             R = hub.relprop_decode(R)
             R_inp = torch.sum(torch.abs(hub.relprop_encode(R['enc_out'])), dim=-1)
             R_out = torch.sum(torch.abs(R['emb_out']), dim=-1)
@@ -112,10 +114,11 @@ for f in ["checkpoint_last.pt"]: #os.listdir(os.fsencode(directory)):
             inp_lrp.append(R_inp[0])
             out_lrp.append(R_out_uncrop[0])        
             torch.cuda.empty_cache()
-            #print(R_inp[0], torch.sum(R_inp), R_out_uncrop[0], torch.sum(R_out_uncrop))
+            print(R_inp[0], torch.sum(R_inp), R_out_uncrop[0], torch.sum(R_out_uncrop))
+            exit()
         result[filename].append({'src': source_sentence, 'dst': target_sentence,
                    'inp_lrp': np.array(inp_lrp), 'out_lrp': np.array(out_lrp)})
-        
         print(result[filename])
+        
 import pickle
 pickle.dump(result, open(dir_out + 'lrp_results', 'wb'))
