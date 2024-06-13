@@ -52,6 +52,9 @@ class LRP:
 
         """
         with torch.enable_grad():
+            #print('inputs', [x.shape for x in inps], inps)
+            #print('output_relevance', torch.sum(output_relevance), output_relevance)
+            
             assert len(inps) > 0, "please provide at least one input"
             alpha, beta, eps = cls.alpha, cls.beta, cls.eps
             inps = [inp.clone().requires_grad_() for inp in inps]
@@ -108,7 +111,7 @@ class LRP:
                 input_relevances.append(inp_relevance)
                 offset = offset + inp_size
             
-            #print('input_relevances', [torch.sum(inp) for inp in input_relevances])
+            #print('input_relevances_end', [torch.sum(inp) for inp in input_relevances], input_relevances)
             #print(torch.sum(output_relevance))
             return cls.rescale(output_relevance, *input_relevances, batch_axes=batch_axes, **kwargs)
 
@@ -119,12 +122,14 @@ class LRP:
             assert isinstance(batch_axes, (tuple, list))
             #print('input', inputs)
             get_summation_axes = lambda tensor: tuple(i for i in range(len(tensor.shape)) if i not in batch_axes)
+            #print('get_summation_axes', get_summation_axes(reference))
             ref_scale = torch.sum(abs(reference), dim=get_summation_axes(reference), keepdim=True)
             inp_scales = [torch.sum(abs(inp), dim=get_summation_axes(inp), keepdim=True) for inp in inputs]
             #ref_scale = torch.sum(abs(reference))
             total_inp_scale = sum(inp_scales) + cls.eps
-            inputs = [inputs[i] * (ref_scale / (inp_scales[i]+cls.eps)) for i in range(len(inputs))]
-            #print([torch.sum(inps) for inps in inputs])
+            #print('ref_scale', ref_scale, 'total_inp_scale', total_inp_scale, 'inp_scales', inp_scales)
+            inputs = [inputs[i] * (ref_scale / total_inp_scale) for i in range(len(inputs))]
+            #print('inputs_out', [torch.sum(inps) for inps in inputs], inputs)
         return inputs[0] if len(inputs) == 1 else inputs
 
 

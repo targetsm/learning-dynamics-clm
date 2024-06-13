@@ -38,12 +38,12 @@ red_color = '#B85450'
 
 alti_dict = dict()
 #directory = "/cluster/scratch/ggabriel/ma/tm/checkpoints/"
-#directory = "../../models/tm/checkpoints/analysis"
-directory = "./small_model/checkpoints/"
+directory = "../../models/tm/checkpoints/analysis"
+#directory = "./small_model/checkpoints/"
 dir_out = './' # set the directory to save the results
 result = {}
 
-for f in ["checkpoint_last.pt"]: #os.listdir(os.fsencode(directory)):
+for f in ["100000.pt"]: #os.listdir(os.fsencode(directory)):
     
     filename = os.fsdecode(f)
     print(filename)
@@ -52,7 +52,7 @@ for f in ["checkpoint_last.pt"]: #os.listdir(os.fsencode(directory)):
     hub = FairseqTransformerHub.from_pretrained(
         checkpoint_dir=directory,
         checkpoint_file=filename,
-        data_name_or_path="../data-bin/iwslt14.sep.tokenized.de-en/",
+        data_name_or_path="../../data-bin/iwslt14.sep.tokenized.de-en/",
         )
     #hub.models[0].to('cuda')
     # Get sample from provided test data
@@ -115,10 +115,9 @@ for f in ["checkpoint_last.pt"]: #os.listdir(os.fsencode(directory)):
             out_lrp.append(R_out_uncrop[0])        
             torch.cuda.empty_cache()
             print(R_inp[0], torch.sum(R_inp), R_out_uncrop[0], torch.sum(R_out_uncrop))
-            exit()
         result[filename].append({'src': source_sentence, 'dst': target_sentence,
                    'inp_lrp': np.array(inp_lrp), 'out_lrp': np.array(out_lrp)})
         print(result[filename])
-        
+        exit()
 import pickle
 pickle.dump(result, open(dir_out + 'lrp_results', 'wb'))
