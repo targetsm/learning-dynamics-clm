@@ -16,6 +16,8 @@ def jacobian(out, inps, function):
     with torch.enable_grad():
         flat_out = torch.reshape(out, [-1])
         flat_jac_components = []    
+        print(out.shape, [x.shape for x in inps])
+        #exit()
         #print(out.shape)
         #return [torch.ones( list(out.shape)+ list(inp.shape)) for inp in inps]
         #for i in range(flat_out.shape[0]):
@@ -24,6 +26,7 @@ def jacobian(out, inps, function):
         #print('jac', flat_jac_components)
         jac_components = [torch.reshape(flat_jac, list(out.shape)+ list(inp.shape))
                         for flat_jac, inp in zip(flat_jac_components, inps)]
+        #print("jac_components:", jac_components)
     return jac_components
 
 class LRP:
@@ -61,6 +64,7 @@ class LRP:
             reference_inputs = reference_inputs or tuple(map(torch.zeros_like, inps))
             assert len(reference_inputs) == len(inps)
             output = function(*inps)
+            print('self_computed', output, output.shape)
             reference_output = reference_output if reference_output is not None else function(*reference_inputs)
             assert isinstance(output, torch.Tensor) and isinstance(reference_output, torch.Tensor)
             flat_output_relevance = torch.reshape(output_relevance, [-1])
