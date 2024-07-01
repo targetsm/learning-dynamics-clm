@@ -8,14 +8,10 @@ import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch import Tensor
-from typing import Dict, List, Optional, Tuple
-
 
 import numpy as np
 from fairseq.hub_utils import GeneratorHubInterface
 from fairseq.models.transformer import TransformerModel
-from fairseq import utils
 
 from einops import rearrange
 
@@ -233,6 +229,34 @@ class FairseqTransformerHub(GeneratorHubInterface):
             return model_output, log_probs, encoder_out, layer_inputs, layer_outputs
 
    
+    def relprop_residual_new(self, R, name_prev, name_next, main_key):
+        
+        residual_inp = self.layer_inputs[name_prev[0]][0][0].squeeze(1)
+        residual_update = self.layer_outputs[name_next[0]][0].squeeze(1)
+        original_scale = torch.sum(abs(R))
+        Rinp_residual = 0.0
+        R = self.norm_layer.relprop(R)
+        Rinp_residual, R = relprop_add(R, residual_inp, residual_update)
+        R = self.wrapped_layer.relprop(R)
+        if isinstance(R, dict):
+            assert main_key is not None
+            R_dict = R
+            R = R_dict[main_key]        
+
+        pre_residual_scale = torch.sum(abs(R) + abs(Rinp_residual))
+
+        R = R + Rinp_residual
+        R = R * pre_residual_scale / torch.sum(torch.abs(R))
+        if main_key is not None:
+            R_dict = dict(R_dict)
+            R_dict[main_key] = R
+            total_scale = sum(torch.sum(abs(relevance)) for relevance in R_dict.values())
+            R_dict = {key: value * original_scale / total_scale
+                      for key, value in R_dict.items()}
+            return R_dict
+        else:
+            return R
+    
     def relprop_add(self, output_relevance, name_prev, name_next, hid_axis=-1, **kwargs):
         """ relprop through elementwise addition of tensors of the same shape """
         def lrp_sum_to_shape(x, new_shape):
@@ -271,11 +295,11 @@ class FairseqTransformerHub(GeneratorHubInterface):
         flat_input_relevances_tiled[0] = torch.stack(flat_input_relevances_tiled[0])
         flat_input_relevances_tiled[1] = torch.stack(flat_input_relevances_tiled[1])
         input_relevances_tiled = list(map(torch.reshape, flat_input_relevances_tiled, [tiled_input_shape] * len(inputs)))
-        #print(input_relevances_tiled, [torch.sum(x) for x in input_relevances_tiled])
+        print(input_relevances_tiled, [torch.sum(x) for x in input_relevances_tiled])
         input_relevances = list(map(lrp_sum_to_shape, input_relevances_tiled, input_shapes))
         
         #input_relevances = [x.shape for x in input_relevances]
-        #print('input_relevances', [torch.sum(x) for x in input_relevances], input_relevances)
+        print('input_relevances', [torch.sum(x) for x in input_relevances], input_relevances)
         return input_relevances
 
     def relprop_residual(self, R, Rinp_residual, original_scale, name_prev, name_next):
@@ -386,270 +410,6 @@ class FairseqTransformerHub(GeneratorHubInterface):
             v  # [batch_size * n_kv * (v_deph/n_heads)]
         )
         return x
-    def attn_core(
-        self,
-        attn_self,
-        query,
-        key: Optional[Tensor],
-        value: Optional[Tensor],
-        key_padding_mask: Optional[Tensor] = None,
-        incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]] = None,
-        need_weights: bool = True,
-        static_kv: bool = False,
-        attn_mask: Optional[Tensor] = None,
-        before_softmax: bool = False,
-        need_head_weights: bool = False,
-    ) -> Tuple[Tensor, Optional[Tensor]]:
-        """Input shape: Time x Batch x Channel
-
-        Args:
-            key_padding_mask (ByteTensor, optional): mask to exclude
-                keys that are pads, of shape `(batch, src_len)`, where
-                padding elements are indicated by 1s.
-            need_weights (bool, optional): return the attention weights,
-                averaged over heads (default: False).
-            attn_mask (ByteTensor, optional): typically used to
-                implement causal attention, where the mask prevents the
-                attention from looking forward in time (default: None).
-            before_softmax (bool, optional): return the raw attention
-                weights and values before the attention softmax.
-            need_head_weights (bool, optional): return the attention
-                weights for each head. Implies *need_weights*. Default:
-                return the average attention weights over all heads.
-        """
-        #attn_mask = None
-        #key_padding_mask = torch.tensor([[False, False, False, False, False, False, False, False, False, False]])
-        #if attn_self.self_attention and attn_self.:
-        #    attn_mask = torch.triu(torch.full([query.shape[0], query.shape[0]], float('-inf')), 1)
-        #    print(attn_mask)
-            #attn_mask = torch.tensor([[0., -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf],
-            #                [0., 0., -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf],
-            #                [0., 0., 0., -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf],
-            #                [0., 0., 0., 0., -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf],
-            #                [0., 0., 0., 0., 0., -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf],
-            #                [0., 0., 0., 0., 0., 0., -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf],
-            #                [0., 0., 0., 0., 0., 0., 0., -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf],
-            #                [0., 0., 0., 0., 0., 0., 0., 0., -inf, -inf, -inf, -inf, -inf, -inf, -inf],
-            #                [0., 0., 0., 0., 0., 0., 0., 0., 0., -inf, -inf, -inf, -inf, -inf, -inf],
-            #                [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., -inf, -inf, -inf, -inf, -inf],
-            #                [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., -inf, -inf, -inf, -inf],
-            #                [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., -inf, -inf, -inf],
-            #                [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., -inf, -inf],
-            #                [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., -inf],
-            #                [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]])
-        #    key_padding_mask = None
-        if need_head_weights:
-            need_weights = True
-        tgt_len, bsz, embed_dim = query.size()
-        #assert embed_dim == attn_self.embed_dm
-        assert list(query.size()) == [tgt_len, bsz, embed_dim]
-        #if incremental_state is not None:
-        #    saved_state = attn_self._get_input_buffer(incremental_state)
-        #    if saved_state is not None and "prev_key" in saved_state:
-        #        # previous time steps are cached - no need to recompute
-        #        # key and value if they are static
-        #        if static_kv:
-        #            assert attn_self.encoder_decoder_attention and not attn_self.self_attention
-        #            key = value = None
-        #else:
-        saved_state = None
-
-        #if attn_self.self_attention:
-        #    q = attn_self.q_proj(query)
-        #    k = attn_self.k_proj(query)
-        #    v = attn_self.v_proj(query)
-        #elif attn_self.encoder_decoder_attention:
-        #    # encoder-decoder attention
-        #    q = attn_self.q_proj(query)
-        #    if key is None:
-        #        assert value is None
-        #        k = v = None
-        #    else:
-        #        k = attn_self.k_proj(key)
-        #        v = attn_self.v_proj(key)
-
-        #else:
-        #    assert key is not None and value is not None
-        #    q = attn_self.q_proj(query)
-        #    k = attn_self.k_proj(key)
-        #    v = attn_self.v_proj(value)
-        q = query
-        k = key
-        v = value
-        #print(query, key, value)
-        #q = q * attn_self.scaling
-        if attn_self.bias_k is not None:
-            assert attn_self.bias_v is not None
-            k = torch.cat([k, attn_self.bias_k.repeat(1, bsz, 1)])
-            v = torch.cat([v, attn_self.bias_v.repeat(1, bsz, 1)])
-            if attn_mask is not None:
-                attn_mask = torch.cat(
-                    [attn_mask, attn_mask.new_zeros(attn_mask.size(0), 1)], dim=1
-                )
-            if key_padding_mask is not None:
-                key_padding_mask = torch.cat(
-                    [
-                        key_padding_mask,
-                        key_padding_mask.new_zeros(key_padding_mask.size(0), 1),
-                    ],
-                    dim=1,
-                )
-
-        q = (
-            q.contiguous()
-            .view(tgt_len, bsz * attn_self.num_heads, attn_self.head_dim)
-            .transpose(0, 1)
-        )
-        if k is not None:
-            k = (
-                k.contiguous()
-                .view(-1, bsz * attn_self.num_heads, attn_self.head_dim)
-                .transpose(0, 1)
-            )
-        if v is not None:
-            v = (
-                v.contiguous()
-                .view(-1, bsz * attn_self.num_heads, attn_self.head_dim)
-                .transpose(0, 1)
-            )
-
-        #if saved_state is not None:
-        #    # saved states are stored with shape (bsz, num_heads, seq_len, head_dim)
-        #    if "prev_key" in saved_state:
-        #        _prev_key = saved_state["prev_key"]
-        #        assert _prev_key is not None
-        #        prev_key = _prev_key.view(bsz * attn_self.num_heads, -1, attn_self.head_dim)
-        #        if static_kv:
-        #            k = prev_key
-        #        else:
-        #            assert k is not None
-        #            k = torch.cat([prev_key, k], dim=1)
-        #    if "prev_value" in saved_state:
-        #        _prev_value = saved_state["prev_value"]
-        #        assert _prev_value is not None
-        #        prev_value = _prev_value.view(bsz * attn_self.num_heads, -1, attn_self.head_dim)
-        #        if static_kv:
-        #            v = prev_value
-        #        else:
-        #            assert v is not None
-        #            v = torch.cat([prev_value, v], dim=1)
-        #    prev_key_padding_mask: Optional[Tensor] = None
-        #    if "prev_key_padding_mask" in saved_state:
-        #        prev_key_padding_mask = saved_state["prev_key_padding_mask"]
-        #    assert k is not None and v is not None
-        #    key_padding_mask = MultiheadAttention._append_prev_key_padding_mask(
-        #        key_padding_mask=key_padding_mask,
-        #        prev_key_padding_mask=prev_key_padding_mask,
-        #        batch_size=bsz,
-        #        src_len=k.size(1),
-        #        static_kv=static_kv,
-        #    )
-
-        #    saved_state["prev_key"] = k.view(bsz, attn_self.num_heads, -1, attn_self.head_dim)
-        #    saved_state["prev_value"] = v.view(bsz, attn_self.num_heads, -1, attn_self.head_dim)
-        #    saved_state["prev_key_padding_mask"] = key_padding_mask
-        #    # In this branch incremental_state is never None
-        #    assert incremental_state is not None
-        #    incremental_state = attn_self._set_input_buffer(incremental_state, saved_state)
-        assert k is not None
-        src_len = k.size(1)
-
-        # This is part of a workaround to get around fork/join parallelism
-        # not supporting Optional types.
-        if key_padding_mask is not None and key_padding_mask.dim() == 0:
-            key_padding_mask = None
-
-        if key_padding_mask is not None:
-            #print(key_padding_mask.size(), bsz, src_len)
-            assert key_padding_mask.size(0) == bsz
-            assert key_padding_mask.size(1) == src_len
-
-        if attn_self.add_zero_attn:
-            assert v is not None
-            src_len += 1
-            k = torch.cat([k, k.new_zeros((k.size(0), 1) + k.size()[2:])], dim=1)
-            v = torch.cat([v, v.new_zeros((v.size(0), 1) + v.size()[2:])], dim=1)
-            if attn_mask is not None:
-                attn_mask = torch.cat(
-                    [attn_mask, attn_mask.new_zeros(attn_mask.size(0), 1)], dim=1
-                )
-            if key_padding_mask is not None:
-                key_padding_mask = torch.cat(
-                    [
-                        key_padding_mask,
-                        torch.zeros(key_padding_mask.size(0), 1).type_as(
-                            key_padding_mask
-                        ),
-                    ],
-                    dim=1,
-                )
-
-        attn_weights = torch.bmm(q, k.transpose(1, 2))
-        attn_weights = attn_self.apply_sparse_mask(attn_weights, tgt_len, src_len, bsz)
-        #print('attn_weights', attn_weights, attn_weights.shape)
-        assert list(attn_weights.size()) == [bsz * attn_self.num_heads, tgt_len, src_len]
-        
-        #if not attn_self.encoder_decoder_attention:
-        #    attn_mask = torch.tril(torch.ones(attn_weights.shape[1:3]), 0)
-        #    #print('flat_attn_mask', flat_attn_mask)
-        #else:
-        #    attn_mask = torch.zeros(attn_weights.shape[1:3])
-        #tri_mask = torch.triu(torch.ones_like(attn_weights), 1)
-        #print(attn_mask)
-        #attn_weights[attn_mask] = -1e9
-        #print(attn_weights.shape)
-        #print(attn_mask.shape)
-        if attn_mask is not None:
-            attn_mask = attn_mask.unsqueeze(0)
-            if attn_self.onnx_trace:
-                attn_mask = attn_mask.repeat(attn_weights.size(0), 1, 1)
-            #print(attn_weights.shape, attn_mask.shape)
-            attn_weights += attn_mask
-        
-        if key_padding_mask is not None:
-            # don't attend to padding symbols
-            attn_weights = attn_weights.view(bsz, attn_self.num_heads, tgt_len, src_len)
-            if not attn_self.tpu:
-                attn_weights = attn_weights.masked_fill(
-                    key_padding_mask.unsqueeze(1).unsqueeze(2).to(torch.bool),
-                    float("-inf"),
-                )
-            else:
-                attn_weights = attn_weights.transpose(0, 2)
-                attn_weights = attn_weights.masked_fill(key_padding_mask, float("-inf"))
-                attn_weights = attn_weights.transpose(0, 2)
-            attn_weights = attn_weights.view(bsz * attn_self.num_heads, tgt_len, src_len)
-
-        if before_softmax:
-            return attn_weights, v
-
-        attn_weights_float = utils.softmax(
-            attn_weights, dim=-1, onnx_trace=attn_self.onnx_trace
-        )
-        attn_weights = attn_weights_float.type_as(attn_weights)
-        attn_probs = attn_self.dropout_module(attn_weights)
-
-        assert v is not None
-        attn = torch.bmm(attn_probs, v)
-        assert list(attn.size()) == [bsz * attn_self.num_heads, tgt_len, attn_self.head_dim]
-        if attn_self.onnx_trace and attn.size(1) == 1:
-            # when ONNX tracing a single decoder step (sequence length == 1)
-            # the transpose is a no-op copy before view, thus unnecessary
-            attn = attn.contiguous().view(tgt_len, bsz, embed_dim)
-        else:
-            attn = attn.transpose(0, 1).contiguous().view(tgt_len, bsz, embed_dim)
-        #attn = attn_self.out_proj(attn)
-        attn_weights: Optional[Tensor] = None
-        if need_weights:
-            attn_weights = attn_weights_float.view(
-                bsz, attn_self.num_heads, tgt_len, src_len
-            ).transpose(1, 0)
-            if not need_head_weights:
-                # average attention weights over heads
-                attn_weights = attn_weights.mean(dim=0)
-        #attn = attn.transpose(0,1)
-        #print('self_computed', attn)
-        return attn
 
     def relprop_attn(self, R, name, is_combined=False):
         def _split_heads(x, num_heads):
@@ -679,90 +439,70 @@ class FairseqTransformerHub(GeneratorHubInterface):
             return ret
         
         attn_self = eval(name[1])
-        #print(attn_self.forward())
- 
+        
         original_scale = torch.sum(abs(R))
         #print(R.shape)
         R = self.relprop_ffn(R, [x + '.out_proj' for x in name])
         R_split = _split_heads(R, attn_self.num_heads)
-        #print('original',self.layer_inputs[name[0]+'.out_proj'][0][0], self.layer_inputs[name[0]+'.out_proj'][0][0].transpose(0,1).shape)
+        print('original', self.layer_inputs[name[0]+'.out_proj'][0][0], self.layer_inputs[name[0]+'.out_proj'][0][0].shape)
+        #exit()
         # note: we apply relprop for each independent sample and head in order to avoid quadratic memory growth
-        #print('q_input', self.layer_inputs[name[0]+'.q_proj'][0])
+        #print( self.layer_outputs[name[0]+'.q_proj'])
         q = self.layer_outputs[name[0]+'.q_proj'][0]#.transpose(0,1)
         k = self.layer_outputs[name[0]+'.k_proj'][0]#.transpose(0,1)
         v = self.layer_outputs[name[0]+'.v_proj'][0]#.transpose(0,1)
-        #print(self.attn_core(attn_self, q, k, v)[0], self.attn_core(attn_self, q, k, v)[0].shape)
-        #print('attention',  name[0], 'q', q.shape,'k', k.shape,'v', v.shape)
+        
+        print('attention',  name[0], 'q', q.shape,'k', k.shape,'v', v.shape)
         q, k, v = map(
             lambda x: rearrange(
                 x,
                 't b (n_h h_d) -> (b n_h) t h_d',
-                n_h=1, #attn_self.num_heads,
-                h_d=attn_self.head_dim*attn_self.num_heads,
+                n_h=attn_self.num_heads,
+                h_d=attn_self.head_dim
             ),
             (q, k, v)
         ) 
 
-        #attn_weights = torch.bmm(q, k.transpose(1, 2))
+        attn_weights = torch.bmm(q, k.transpose(1, 2))
 
 
-        #print('attention',  name[0], 'q', q.shape,'k', k.shape,'v', v.shape)
+        print('attention',  name[0], 'q', q.shape,'k', k.shape,'v', v.shape)
         
-        #attn_weights = torch.bmm(q, k.transpose(1, 2))
-        #if  'decoder' in name[0] and 'self_attn' in name[0]:
-        #    flat_attn_mask = torch.tril(torch.ones_like(attn_weights), 0)
-        #    #print('flat_attn_mask', flat_attn_mask)
-        #else:
-        #    flat_attn_mask = torch.zeros_like(attn_weights)
+        attn_weights = torch.bmm(q, k.transpose(1, 2))
+        if  'decoder' in name[0] and 'self_attn' in name[0]:
+            flat_attn_mask = torch.tril(torch.ones_like(attn_weights), 0)
+            #print('flat_attn_mask', flat_attn_mask)
+        else:
+            flat_attn_mask = torch.zeros_like(attn_weights)
         
         q_flat, k_flat, v_flat = q, k, v
         dim_per_head = v_flat.shape[-1]
         batch_size, n_heads, n_q = R_split.shape[0], R_split.shape[1], R_split.shape[2]
-        #n_kv = flat_attn_mask.shape[2]
+        n_kv = flat_attn_mask.shape[2]
         R_flat = torch.reshape(R_split, [-1, n_q, dim_per_head])
         # ^-- *_flat variables are of shape: [(batch * n_heads), n_q, dim per head]
         
         #attn_jacobian = self._attn_head_jacobian_simple if LRP.consider_attn_constant else self._attn_head_jacobian
         attn_jacobian = None
         flat_relevances = []
-        #flat_attn_mask.requires_grad_()
-        #print(flat_attn_mask.shape, q.shape
-        #print('self_computed', self.attn_core(attn_self, q, k, v)) #, attn_mask=flat_attn_mask.squeeze(0)))
-
-        if 'encoder' in name[0] and 'decoder' in name[0]:
-            attn_mask = None
-            key_padding_mask = torch.full([1, k.shape[1]], False)
-            #torch.tensor([[False, False, False, False, False, False, False, False, False, False]])
-        elif 'decoder' in name[0]:
-            attn_mask = torch.triu(torch.full([q.shape[1], q.shape[1]], float('-inf')), 1)
-            key_padding_mask = None
-        elif 'encoder' in name[0]:
-            attn_mask = None
-            key_padding_mask = torch.full([1, k.shape[1]], False) #torch.tensor([[False, False, False, False, False, False, False, False, False, False]])
-        flat_relevances = LRP.relprop(
-                lambda q, k, v: self.attn_core(attn_self, q.transpose(0,1), k.transpose(0,1), v.transpose(0,1), attn_mask=attn_mask, key_padding_mask = key_padding_mask),
-                R, q, k, v,
+        flat_attn_mask.requires_grad_()
+        #print(q_flat.shape)
+        for i in range(q_flat.shape[0]):
+            flat_relevances.append(LRP.relprop(
+                lambda q, k, v: self.attention_core(q, k, v, flat_attn_mask[i, None]),
+                R_flat[i, None], q_flat[i, None], k_flat[i, None], v_flat[i, None],
                 jacobians=None, #attn_jacobian(q_flat[i, None], k_flat[i, None], v_flat[i, None], flat_attn_mask[i, None]),
-                batch_axes=(0,))
-        #print([torch.sum(x, -1) for x in flat_relevances])
-        #for i in range(q_flat.shape[0]):
-        #    flat_relevances.append(LRP.relprop(
-        #        lambda q, k, v: self.attn_core(attn_self, q, k, v, attn_mask=flat_attn_mask[i, None]),
-        #        R_flat[i, None], q_flat[i, None], k_flat[i, None], v_flat[i, None],
-        #        jacobians=None, #attn_jacobian(q_flat[i, None], k_flat[i, None], v_flat[i, None], flat_attn_mask[i, None]),
-        #        batch_axes=(0,)))
-        #print([torch.sum(x, -1) for x in flat_relevances])
-        #print([x.shape for x in flat_relevances])
-        #flat_relevances = list(map(list, zip(*flat_relevances)))
-        #flat_relevances = [torch.stack(rel) for rel in flat_relevances]
-        #print([x.shape for x in flat_relevances])
+                batch_axes=(0,)))
         #print([[torch.sum(y, -1) for y in x] for x in flat_relevances])
         #exit()
-        #Rq, Rk, Rv = [_combine_heads(torch.reshape(rel_flat, [batch_size, n_heads, -1, dim_per_head]))
-                      #for rel_flat in flat_relevances]
-        Rq, Rk, Rv = flat_relevances[0], flat_relevances[1], flat_relevances[2]
+        flat_relevances = list(map(list, zip(*flat_relevances)))
+        flat_relevances = [torch.stack(rel) for rel in flat_relevances]
+        #print([[torch.sum(y, -1) for y in x] for x in flat_relevances])
+         
+        Rq, Rk, Rv = [_combine_heads(torch.reshape(rel_flat, [batch_size, n_heads, -1, dim_per_head]))
+                      for rel_flat in flat_relevances]
         Rq, Rk, Rv = LRP.rescale(R, Rq, Rk, Rv, batch_axes=(0,))
-        #print(Rq.shape, Rk.shape, Rv.shape)
+        
         if is_combined:
             Rq = self.relprop_ffn(Rq, [x + '.q_proj' for x in name])
             Rk = self.relprop_ffn(Rk, [x + '.k_proj' for x in name])
@@ -778,6 +518,7 @@ class FairseqTransformerHub(GeneratorHubInterface):
             Rk = self.relprop_ffn(Rk, [x + '.k_proj' for x in name])
             Rv = self.relprop_ffn(Rv, [x + '.v_proj' for x in name])
             #print('Rq', Rq, 'Rk', Rk, 'Rv', Rv)
+
             attn_scale = torch.sum(torch.abs(Rq)) + torch.sum(torch.abs(Rk)) + torch.sum(torch.abs(Rv))
             Rqinp = Rq * original_scale / attn_scale
             Rkvinp =  (Rk + Rv) * original_scale / attn_scale
@@ -795,42 +536,43 @@ class FairseqTransformerHub(GeneratorHubInterface):
         R_enc_scale = 0.0
         R_orig = R
         for i in range(len(self.models[0].decoder.layers))[::-1]:
-            #print(i, torch.sum(R), R)
+            print(i, torch.sum(R), R)
             R = self.relprop_norm(R, self.get_name(i,'final_layer_norm',  'decoder'))
-            #print('final_norm', torch.sum(R), R)
-            R_res, R = self.relprop_add(R, self.get_name(i,'fc1', 'decoder'), self.get_name(i,'fc2', 'decoder'))
+            print('final_norm', torch.sum(R), R)
+            R, R_res = self.relprop_add(R, self.get_name(i,'fc1', 'decoder'), self.get_name(i,'fc2', 'decoder'))
             #exit()
-            #print('add', torch.sum(R), torch.sum(R_res), R)
+            print('add', torch.sum(R), torch.sum(R_res), R)
             R = self.relprop_ffn(R, self.get_name(i,'fc2', 'decoder'))
             R = self.relprop_ffn(R, self.get_name(i,'fc1', 'decoder'))
-            #print('ffn', torch.sum(R), R)
+            print('ffn', torch.sum(R), R)
             R = self.relprop_residual(R, R_res, None, self.get_name(i,'fc1', 'decoder'), self.get_name(i,'fc2', 'decoder'))
-            #print('residual', torch.sum(R), R)
+            print('residual', torch.sum(R), R)
             R = self.relprop_norm(R, self.get_name(i,'encoder_attn_layer_norm', 'decoder'))
-            #print('norm', torch.sum(R), R)
+            print('norm', torch.sum(R), R)
             #exit()
             original_scale = torch.sum(R)
-            R_res, R = self.relprop_add(R, self.get_name(i,'encoder_attn.q_proj', 'decoder'), self.get_name(i,'encoder_attn.out_proj', 'decoder'))
-            #print('add', torch.sum(R), torch.sum(R_res), R, R_res)
+            R, R_res = self.relprop_add(R, self.get_name(i,'encoder_attn.q_proj', 'decoder'), self.get_name(i,'encoder_attn.out_proj', 'decoder'))
+            print('add', torch.sum(R), torch.sum(R_res), R, R_res)
             #exit()
             #possibly another layernorm here attn_ln 
             relevance_dict = self.relprop_attn(R, self.get_name(i,'encoder_attn', 'decoder'))
-            #print('encoder_attn', torch.sum(relevance_dict['query_inp']), torch.sum(relevance_dict['kv_inp']), relevance_dict)
+            print('encoder_attn', torch.sum(relevance_dict['query_inp']), torch.sum(relevance_dict['kv_inp']), relevance_dict)
+            #exit()
             relevance_dict = self.relprop_residual(relevance_dict, R_res, original_scale, self.get_name(i,'encoder_attn', 'decoder'), self.get_name(i,'encoder_attn', 'decoder'))
-            #print('residual', torch.sum(relevance_dict['query_inp']), torch.sum(relevance_dict['kv_inp']), relevance_dict)
+            print('residual', torch.sum(relevance_dict['query_inp']), torch.sum(relevance_dict['kv_inp']), relevance_dict)
             R = relevance_dict['query_inp']
             R_enc += relevance_dict['kv_inp']
             R_enc_scale += torch.sum(torch.abs(relevance_dict['kv_inp']))
-            #print('residual_added', 'R', torch.sum(R), 'R_enc', torch.sum(R_enc), relevance_dict)
+            print('residual_added', 'R', torch.sum(R), 'R_enc', torch.sum(R_enc), relevance_dict)
             #exit()
             R = self.relprop_norm(R, self.get_name(i,'self_attn_layer_norm', 'decoder'))
-            #print('norm', torch.sum(R), R)
-            R_res, R = self.relprop_add(R, self.get_name(i,'self_attn.q_proj', 'decoder'), self.get_name(i,'self_attn.out_proj', 'decoder'))
-            #print('add', torch.sum(R), torch.sum(R_res), R, R_res)
+            print('norm', torch.sum(R), R)
+            R, R_res = self.relprop_add(R, self.get_name(i,'self_attn.q_proj', 'decoder'), self.get_name(i,'self_attn.out_proj', 'decoder'))
+            print('add', torch.sum(R), torch.sum(R_res), R, R_res)
             R = self.relprop_attn(R, self.get_name(i,'self_attn', 'decoder'), True)
-            #print('self_attn', torch.sum(R), R)
+            print('self_attn', torch.sum(R), R)
             R = self.relprop_residual(R, R_res, None, self.get_name(i,'self_attn', 'decoder'), self.get_name(i,'self_attn', 'decoder'))
-            #print('residual', torch.sum(R), R)
+            print('residual', torch.sum(R), R)
         # shift left: compensate for right shift
         R_crop = F.pad(input=R, pad=(0, 0, 0, 1, 0, 0), mode='constant', value=0)[:, 1:, :]
         return {'emb_out': R_crop, 'enc_out': R_enc * R_enc_scale / torch.sum(torch.abs(R_enc)),
@@ -840,24 +582,24 @@ class FairseqTransformerHub(GeneratorHubInterface):
     def relprop_encode(self, R):
         """ propagates relevances from enc_out to emb_inp """
         for i in range(len(self.models[0].encoder.layers))[::-1]:
-            #print('encoder', i, torch.sum(R, -1))
+            print('encoder', i, torch.sum(R, -1))
             R = self.relprop_norm(R, self.get_name(i,'final_layer_norm', 'encoder'))
-            #print('norm', torch.sum(R), R)
-            R_res, R = self.relprop_add(R, self.get_name(i,'fc1', 'encoder'), self.get_name(i,'fc2', 'encoder'))
-            #print('add', torch.sum(R), torch.sum(R_res), R, R_res)
+            print('norm', torch.sum(R), R)
+            R, R_res = self.relprop_add(R, self.get_name(i,'fc1', 'encoder'), self.get_name(i,'fc2', 'encoder'))
+            print('add', torch.sum(R), torch.sum(R_res), R, R_res)
             R = self.relprop_ffn(R, self.get_name(i,'fc2', 'encoder'))
-            #print('fc2', torch.sum(R), R)
+            print('fc2', torch.sum(R), R)
             R = self.relprop_ffn(R, self.get_name(i,'fc1', 'encoder'))
-            #print('fc1', torch.sum(R), R)
+            print('fc1', torch.sum(R), R)
             R = self.relprop_residual(R, R_res, None, self.get_name(i,'fc1', 'encoder'), self.get_name(i,'fc2', 'encoder'))
-            #print('residual', torch.sum(R), R)
+            print('residual', torch.sum(R), R)
             R = self.relprop_norm(R, self.get_name(i,'self_attn_layer_norm', 'encoder'))
-            #print('norm', torch.sum(R), R)
-            R_res, R = self.relprop_add(R, self.get_name(i,'self_attn.q_proj', 'encoder'), self.get_name(i,'self_attn.out_proj', 'encoder'))
-            #print('add', torch.sum(R), torch.sum(R_res), R, R_res)
+            print('norm', torch.sum(R), R)
+            R, R_res = self.relprop_add(R, self.get_name(i,'self_attn.q_proj', 'encoder'), self.get_name(i,'self_attn.out_proj', 'encoder'))
+            print('add', torch.sum(R), torch.sum(R_res), R, R_res)
             R = self.relprop_attn(R, self.get_name(i,'self_attn', 'encoder'), True)
-            #print('attn', torch.sum(R), R)
+            print('attn', torch.sum(R), R)
             R = self.relprop_residual(R, R_res, None, self.get_name(i,'self_attn', 'encoder'), self.get_name(i,'self_attn', 'encoder'))
-            #print('residual', torch.sum(R), R)
+            print('residual', torch.sum(R), R)
         return R
 

@@ -233,6 +233,34 @@ class FairseqTransformerHub(GeneratorHubInterface):
             return model_output, log_probs, encoder_out, layer_inputs, layer_outputs
 
    
+    def relprop_residual_new(self, R, name_prev, name_next, main_key):
+        
+        residual_inp = self.layer_inputs[name_prev[0]][0][0].squeeze(1)
+        residual_update = self.layer_outputs[name_next[0]][0].squeeze(1)
+        original_scale = torch.sum(abs(R))
+        Rinp_residual = 0.0
+        R = self.norm_layer.relprop(R)
+        Rinp_residual, R = relprop_add(R, residual_inp, residual_update)
+        R = self.wrapped_layer.relprop(R)
+        if isinstance(R, dict):
+            assert main_key is not None
+            R_dict = R
+            R = R_dict[main_key]        
+
+        pre_residual_scale = torch.sum(abs(R) + abs(Rinp_residual))
+
+        R = R + Rinp_residual
+        R = R * pre_residual_scale / torch.sum(torch.abs(R))
+        if main_key is not None:
+            R_dict = dict(R_dict)
+            R_dict[main_key] = R
+            total_scale = sum(torch.sum(abs(relevance)) for relevance in R_dict.values())
+            R_dict = {key: value * original_scale / total_scale
+                      for key, value in R_dict.items()}
+            return R_dict
+        else:
+            return R
+    
     def relprop_add(self, output_relevance, name_prev, name_next, hid_axis=-1, **kwargs):
         """ relprop through elementwise addition of tensors of the same shape """
         def lrp_sum_to_shape(x, new_shape):
@@ -366,290 +394,205 @@ class FairseqTransformerHub(GeneratorHubInterface):
         input_relevance = LRP.rescale(output_relevance, flat_inp_relevance)
         return input_relevance
 
-    def attention_core(self, q, k, v, attn_mask):
-        """
-        Core math operations of multihead attention layer
-        :param q, k, v: [batch_size, n_q or n_kv, dim per head]
-        :param attn_head_mask: [batch_size, n_q, n_kv]
-        """
-        #assert len(q.shape) == 3 and len(attn_mask.shape) == 3
-        key_depth_per_head = q.shape[-1]
-        q = q / float(key_depth_per_head) ** 0.5
+    def __get_attn_weights_module(self, layer_outputs, module_name):
+        enc_dec_, l, attn_module_ = self.parse_module_name(module_name)
+        
+        attn_module = self.get_module(module_name)
+        num_heads = attn_module.num_heads
+        head_dim = attn_module.head_dim
+        k = layer_outputs[f"models.0.{enc_dec_}.layers.{l}.{attn_module_}.k_proj"][0]
+        q = layer_outputs[f"models.0.{enc_dec_}.layers.{l}.{attn_module_}.q_proj"][0]
 
-        attn_bias = -1e8 * (1 - attn_mask)
-        logits = torch.matmul(q, k.transpose(1, 2)) + attn_bias
-        weights = torch.nn.Softmax(2)(logits)  # [batch_size, n_q, n_kv]
-        #if is_dropout_enabled():
-        #    weights = dropout(weights, 1.0 - self.attn_dropout)
-        x = torch.matmul(
-            weights, #weights,  # [batch_size * n_q * n_kv]
-            v  # [batch_size * n_kv * (v_deph/n_heads)]
+        q, k = map(
+            lambda x: rearrange(
+                x,
+                't b (n_h h_d) -> (b n_h) t h_d',
+                n_h=num_heads,
+                h_d=head_dim
+            ),
+            (q, k)
         )
-        return x
-    def attn_core(
-        self,
-        attn_self,
-        query,
-        key: Optional[Tensor],
-        value: Optional[Tensor],
-        key_padding_mask: Optional[Tensor] = None,
-        incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]] = None,
-        need_weights: bool = True,
-        static_kv: bool = False,
-        attn_mask: Optional[Tensor] = None,
-        before_softmax: bool = False,
-        need_head_weights: bool = False,
-    ) -> Tuple[Tensor, Optional[Tensor]]:
-        """Input shape: Time x Batch x Channel
-
-        Args:
-            key_padding_mask (ByteTensor, optional): mask to exclude
-                keys that are pads, of shape `(batch, src_len)`, where
-                padding elements are indicated by 1s.
-            need_weights (bool, optional): return the attention weights,
-                averaged over heads (default: False).
-            attn_mask (ByteTensor, optional): typically used to
-                implement causal attention, where the mask prevents the
-                attention from looking forward in time (default: None).
-            before_softmax (bool, optional): return the raw attention
-                weights and values before the attention softmax.
-            need_head_weights (bool, optional): return the attention
-                weights for each head. Implies *need_weights*. Default:
-                return the average attention weights over all heads.
-        """
-        #attn_mask = None
-        #key_padding_mask = torch.tensor([[False, False, False, False, False, False, False, False, False, False]])
-        #if attn_self.self_attention and attn_self.:
-        #    attn_mask = torch.triu(torch.full([query.shape[0], query.shape[0]], float('-inf')), 1)
-        #    print(attn_mask)
-            #attn_mask = torch.tensor([[0., -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf],
-            #                [0., 0., -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf],
-            #                [0., 0., 0., -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf],
-            #                [0., 0., 0., 0., -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf],
-            #                [0., 0., 0., 0., 0., -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf],
-            #                [0., 0., 0., 0., 0., 0., -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf],
-            #                [0., 0., 0., 0., 0., 0., 0., -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf],
-            #                [0., 0., 0., 0., 0., 0., 0., 0., -inf, -inf, -inf, -inf, -inf, -inf, -inf],
-            #                [0., 0., 0., 0., 0., 0., 0., 0., 0., -inf, -inf, -inf, -inf, -inf, -inf],
-            #                [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., -inf, -inf, -inf, -inf, -inf],
-            #                [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., -inf, -inf, -inf, -inf],
-            #                [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., -inf, -inf, -inf],
-            #                [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., -inf, -inf],
-            #                [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., -inf],
-            #                [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]])
-        #    key_padding_mask = None
-        if need_head_weights:
-            need_weights = True
-        tgt_len, bsz, embed_dim = query.size()
-        #assert embed_dim == attn_self.embed_dm
-        assert list(query.size()) == [tgt_len, bsz, embed_dim]
-        #if incremental_state is not None:
-        #    saved_state = attn_self._get_input_buffer(incremental_state)
-        #    if saved_state is not None and "prev_key" in saved_state:
-        #        # previous time steps are cached - no need to recompute
-        #        # key and value if they are static
-        #        if static_kv:
-        #            assert attn_self.encoder_decoder_attention and not attn_self.self_attention
-        #            key = value = None
-        #else:
-        saved_state = None
-
-        #if attn_self.self_attention:
-        #    q = attn_self.q_proj(query)
-        #    k = attn_self.k_proj(query)
-        #    v = attn_self.v_proj(query)
-        #elif attn_self.encoder_decoder_attention:
-        #    # encoder-decoder attention
-        #    q = attn_self.q_proj(query)
-        #    if key is None:
-        #        assert value is None
-        #        k = v = None
-        #    else:
-        #        k = attn_self.k_proj(key)
-        #        v = attn_self.v_proj(key)
-
-        #else:
-        #    assert key is not None and value is not None
-        #    q = attn_self.q_proj(query)
-        #    k = attn_self.k_proj(key)
-        #    v = attn_self.v_proj(value)
-        q = query
-        k = key
-        v = value
-        #print(query, key, value)
-        #q = q * attn_self.scaling
-        if attn_self.bias_k is not None:
-            assert attn_self.bias_v is not None
-            k = torch.cat([k, attn_self.bias_k.repeat(1, bsz, 1)])
-            v = torch.cat([v, attn_self.bias_v.repeat(1, bsz, 1)])
-            if attn_mask is not None:
-                attn_mask = torch.cat(
-                    [attn_mask, attn_mask.new_zeros(attn_mask.size(0), 1)], dim=1
-                )
-            if key_padding_mask is not None:
-                key_padding_mask = torch.cat(
-                    [
-                        key_padding_mask,
-                        key_padding_mask.new_zeros(key_padding_mask.size(0), 1),
-                    ],
-                    dim=1,
-                )
-
-        q = (
-            q.contiguous()
-            .view(tgt_len, bsz * attn_self.num_heads, attn_self.head_dim)
-            .transpose(0, 1)
-        )
-        if k is not None:
-            k = (
-                k.contiguous()
-                .view(-1, bsz * attn_self.num_heads, attn_self.head_dim)
-                .transpose(0, 1)
-            )
-        if v is not None:
-            v = (
-                v.contiguous()
-                .view(-1, bsz * attn_self.num_heads, attn_self.head_dim)
-                .transpose(0, 1)
-            )
-
-        #if saved_state is not None:
-        #    # saved states are stored with shape (bsz, num_heads, seq_len, head_dim)
-        #    if "prev_key" in saved_state:
-        #        _prev_key = saved_state["prev_key"]
-        #        assert _prev_key is not None
-        #        prev_key = _prev_key.view(bsz * attn_self.num_heads, -1, attn_self.head_dim)
-        #        if static_kv:
-        #            k = prev_key
-        #        else:
-        #            assert k is not None
-        #            k = torch.cat([prev_key, k], dim=1)
-        #    if "prev_value" in saved_state:
-        #        _prev_value = saved_state["prev_value"]
-        #        assert _prev_value is not None
-        #        prev_value = _prev_value.view(bsz * attn_self.num_heads, -1, attn_self.head_dim)
-        #        if static_kv:
-        #            v = prev_value
-        #        else:
-        #            assert v is not None
-        #            v = torch.cat([prev_value, v], dim=1)
-        #    prev_key_padding_mask: Optional[Tensor] = None
-        #    if "prev_key_padding_mask" in saved_state:
-        #        prev_key_padding_mask = saved_state["prev_key_padding_mask"]
-        #    assert k is not None and v is not None
-        #    key_padding_mask = MultiheadAttention._append_prev_key_padding_mask(
-        #        key_padding_mask=key_padding_mask,
-        #        prev_key_padding_mask=prev_key_padding_mask,
-        #        batch_size=bsz,
-        #        src_len=k.size(1),
-        #        static_kv=static_kv,
-        #    )
-
-        #    saved_state["prev_key"] = k.view(bsz, attn_self.num_heads, -1, attn_self.head_dim)
-        #    saved_state["prev_value"] = v.view(bsz, attn_self.num_heads, -1, attn_self.head_dim)
-        #    saved_state["prev_key_padding_mask"] = key_padding_mask
-        #    # In this branch incremental_state is never None
-        #    assert incremental_state is not None
-        #    incremental_state = attn_self._set_input_buffer(incremental_state, saved_state)
-        assert k is not None
-        src_len = k.size(1)
-
-        # This is part of a workaround to get around fork/join parallelism
-        # not supporting Optional types.
-        if key_padding_mask is not None and key_padding_mask.dim() == 0:
-            key_padding_mask = None
-
-        if key_padding_mask is not None:
-            #print(key_padding_mask.size(), bsz, src_len)
-            assert key_padding_mask.size(0) == bsz
-            assert key_padding_mask.size(1) == src_len
-
-        if attn_self.add_zero_attn:
-            assert v is not None
-            src_len += 1
-            k = torch.cat([k, k.new_zeros((k.size(0), 1) + k.size()[2:])], dim=1)
-            v = torch.cat([v, v.new_zeros((v.size(0), 1) + v.size()[2:])], dim=1)
-            if attn_mask is not None:
-                attn_mask = torch.cat(
-                    [attn_mask, attn_mask.new_zeros(attn_mask.size(0), 1)], dim=1
-                )
-            if key_padding_mask is not None:
-                key_padding_mask = torch.cat(
-                    [
-                        key_padding_mask,
-                        torch.zeros(key_padding_mask.size(0), 1).type_as(
-                            key_padding_mask
-                        ),
-                    ],
-                    dim=1,
-                )
 
         attn_weights = torch.bmm(q, k.transpose(1, 2))
-        attn_weights = attn_self.apply_sparse_mask(attn_weights, tgt_len, src_len, bsz)
-        #print('attn_weights', attn_weights, attn_weights.shape)
-        assert list(attn_weights.size()) == [bsz * attn_self.num_heads, tgt_len, src_len]
-        
-        #if not attn_self.encoder_decoder_attention:
-        #    attn_mask = torch.tril(torch.ones(attn_weights.shape[1:3]), 0)
-        #    #print('flat_attn_mask', flat_attn_mask)
-        #else:
-        #    attn_mask = torch.zeros(attn_weights.shape[1:3])
-        #tri_mask = torch.triu(torch.ones_like(attn_weights), 1)
-        #print(attn_mask)
-        #attn_weights[attn_mask] = -1e9
-        #print(attn_weights.shape)
-        #print(attn_mask.shape)
-        if attn_mask is not None:
-            attn_mask = attn_mask.unsqueeze(0)
-            if attn_self.onnx_trace:
-                attn_mask = attn_mask.repeat(attn_weights.size(0), 1, 1)
-            #print(attn_weights.shape, attn_mask.shape)
-            attn_weights += attn_mask
-        
-        if key_padding_mask is not None:
-            # don't attend to padding symbols
-            attn_weights = attn_weights.view(bsz, attn_self.num_heads, tgt_len, src_len)
-            if not attn_self.tpu:
-                attn_weights = attn_weights.masked_fill(
-                    key_padding_mask.unsqueeze(1).unsqueeze(2).to(torch.bool),
-                    float("-inf"),
-                )
-            else:
-                attn_weights = attn_weights.transpose(0, 2)
-                attn_weights = attn_weights.masked_fill(key_padding_mask, float("-inf"))
-                attn_weights = attn_weights.transpose(0, 2)
-            attn_weights = attn_weights.view(bsz * attn_self.num_heads, tgt_len, src_len)
 
-        if before_softmax:
-            return attn_weights, v
+        if enc_dec_ == 'decoder' and attn_module_ == 'self_attn':
+            tri_mask = torch.triu(torch.ones_like(attn_weights), 1).bool()
+            attn_weights[tri_mask] = -1e9
 
-        attn_weights_float = utils.softmax(
-            attn_weights, dim=-1, onnx_trace=attn_self.onnx_trace
+        attn_weights = F.softmax(attn_weights, dim=-1)
+        attn_weights = rearrange(
+            attn_weights,
+            '(b n_h) t_q t_k -> b n_h t_q t_k',
+            n_h=num_heads
         )
-        attn_weights = attn_weights_float.type_as(attn_weights)
-        attn_probs = attn_self.dropout_module(attn_weights)
-
-        assert v is not None
-        attn = torch.bmm(attn_probs, v)
-        assert list(attn.size()) == [bsz * attn_self.num_heads, tgt_len, attn_self.head_dim]
-        if attn_self.onnx_trace and attn.size(1) == 1:
-            # when ONNX tracing a single decoder step (sequence length == 1)
-            # the transpose is a no-op copy before view, thus unnecessary
-            attn = attn.contiguous().view(tgt_len, bsz, embed_dim)
+        return attn_weights
+    
+    def attn_core(self, layer_inputs, layer_outputs, contrib_type, module_name):
+        # Get info about module: encoder, decoder, self_attn, cross-attn
+        #enc_dec_, l, attn_module_ = self.parse_module_name(module_name)
+        
+        # Get info about LN (Pre-LN or Post-LN)
+        if enc_dec_ == 'encoder':
+            pre_layer_norm = self.args.encoder_normalize_before
         else:
-            attn = attn.transpose(0, 1).contiguous().view(tgt_len, bsz, embed_dim)
-        #attn = attn_self.out_proj(attn)
-        attn_weights: Optional[Tensor] = None
-        if need_weights:
-            attn_weights = attn_weights_float.view(
-                bsz, attn_self.num_heads, tgt_len, src_len
-            ).transpose(1, 0)
-            if not need_head_weights:
-                # average attention weights over heads
-                attn_weights = attn_weights.mean(dim=0)
-        #attn = attn.transpose(0,1)
-        #print('self_computed', attn)
-        return attn
+            pre_layer_norm = self.args.decoder_normalize_before
+        
+        attn_w = self.__get_attn_weights_module(layer_outputs, ) # (batch_size, num_heads, src:len, src_len)
+        #print('attn_w', attn_w.shape)
+        def l_transform(x, w_ln):
+            '''Computes mean and performs hadamard product with ln weight (w_ln) as a linear transformation.'''
+            ln_param_transf = torch.diag(w_ln)
+            ln_mean_transf = torch.eye(w_ln.size(0)).to(w_ln.device) - \
+                1 / w_ln.size(0) * torch.ones_like(ln_param_transf).to(w_ln.device)
+
+            out = torch.einsum(
+                '... e , e f , f g -> ... g',
+                x,
+                ln_mean_transf,
+                ln_param_transf
+            )
+            return out
+
+        attn_module = self.get_module(module_name)
+        w_o = attn_module.out_proj.weight
+        b_o = attn_module.out_proj.bias
+        
+        ln = self.get_module(f'{module_name}_layer_norm')
+        w_ln = ln.weight.data
+        b_ln = ln.bias
+        eps_ln = ln.eps
+
+        ## LN2
+        ln2 = self.get_module(f'{enc_dec_}.{l}.final_layer_norm')
+        w_ln2 = ln.weight.data
+        b_ln2 = ln.bias
+        eps_ln2 = ln.eps
+        
+        in_q = layer_inputs[f"models.0.{enc_dec_}.layers.{l}.{attn_module_}.q_proj"][0][0].transpose(0, 1)
+        in_v = layer_inputs[f"models.0.{enc_dec_}.layers.{l}.{attn_module_}.v_proj"][0][0].transpose(0, 1)
+        in_res = layer_inputs[f"models.0.{enc_dec_}.layers.{l}.{attn_module_}_layer_norm"][0][0].transpose(0, 1)
+        ##
+        in_res2 = layer_inputs[f"models.0.{enc_dec_}.layers.{l}.final_layer_norm"][0][0].transpose(0, 1)
+        #print(in_v.shape, in_q.shape, in_res.shape, in_res2.shape)
+
+        if "self_attn" in attn_module_:
+            if pre_layer_norm:
+                residual_ = torch.einsum('sk,bsd->bskd', torch.eye(in_res.size(1)).to(in_res.device), in_res)
+            else:
+                residual_ = torch.einsum('sk,bsd->bskd', torch.eye(in_q.size(1)).to(in_res.device), in_q)
+        else:
+            if pre_layer_norm:
+                residual_ = in_res
+            else:
+                residual_ = in_q
+             
+        v = attn_module.v_proj(in_v)
+        #print('v', v.shape)
+        v = rearrange(
+            v,
+            'b t_v (n_h h_d) -> b n_h t_v h_d',
+            n_h=attn_module.num_heads,
+            h_d=attn_module.head_dim
+        )
+        #print('v_rearr', v.shape)
+        w_o = rearrange(
+            w_o,
+            'out_d (n_h h_d) -> n_h h_d out_d',
+            n_h=attn_module.num_heads,
+        )
+        #print('w_o_rearr', w_o.shape)
+        
+        attn_v_wo = torch.einsum(
+            'b h q k , b h k e , h e f -> b q k f',
+            attn_w,
+            v,
+            w_o
+        )
+
+        # Add residual
+        if "self_attn" in attn_module_:
+            out_qv_pre_ln = attn_v_wo + residual_
+        # Concatenate residual in cross-attention (as another value vector)
+        else:
+            #print('attn_v_wo', attn_v_wo.shape, residual_.shape)
+            out_qv_pre_ln = torch.cat((attn_v_wo,residual_.unsqueeze(-2)),dim=2)
+        
+        # Assert MHA output + residual is equal to 1st layer normalization input
+        out_q_pre_ln = out_qv_pre_ln.sum(-2) +  b_o
+
+        #### NEW
+        if pre_layer_norm==False:
+            # In post-ln we compare with the input of the first layernorm
+            out_q_pre_ln_th = layer_inputs[f"models.0.{enc_dec_}.layers.{l}.{attn_module_}_layer_norm"][0][0].transpose(0, 1)
+        else:
+            if 'encoder' in enc_dec_:
+                # Encoder (self-attention) -> final_layer_norm
+                out_q_pre_ln_th = layer_inputs[f"models.0.{enc_dec_}.layers.{l}.final_layer_norm"][0][0].transpose(0, 1)
+            else:
+                if "self_attn" in attn_module_:
+                    # Self-attention decoder -> encoder_attn_layer_norm
+                    out_q_pre_ln_th = layer_inputs[f"models.0.{enc_dec_}.layers.{l}.encoder_attn_layer_norm"][0][0].transpose(0, 1)
+                else:
+                    # Cross-attention decoder -> final_layer_norm
+                    out_q_pre_ln_th = layer_inputs[f"models.0.{enc_dec_}.layers.{l}.final_layer_norm"][0][0].transpose(0, 1)
+        #### NEW
+
+        # if pre_layer_norm:
+        #     if 'encoder' in enc_dec_:
+        #          # Encoder (self-attention) -> final_layer_norm
+        #         out_q_pre_ln_th = layer_inputs[f"models.0.{enc_dec_}.layers.{l}.final_layer_norm"][0][0].transpose(0, 1)
+                
+        #     else:
+        #         if "self_attn" in attn_module_:
+        #             # Self-attention decoder -> encoder_attn_layer_norm
+        #             out_q_pre_ln_th = layer_inputs[f"models.0.{enc_dec_}.layers.{l}.encoder_attn_layer_norm"][0][0].transpose(0, 1)
+        #         else:
+        #             # Cross-attention decoder -> final_layer_norm
+        #             out_q_pre_ln_th = layer_inputs[f"models.0.{enc_dec_}.layers.{l}.final_layer_norm"][0][0].transpose(0, 1)
+                
+        # else:
+        #     # In post-ln we compare with the input of the first layernorm
+        #     out_q_pre_ln_th = layer_inputs[f"models.0.{enc_dec_}.layers.{l}.{attn_module_}_layer_norm"][0][0].transpose(0, 1)
+        
+        assert torch.dist(out_q_pre_ln_th, out_q_pre_ln).item() < 1e-3 * out_q_pre_ln.numel()
+        
+        if pre_layer_norm:
+            transformed_vectors = out_qv_pre_ln
+            resultant = out_q_pre_ln
+        else:
+            ln_std_coef = 1/(out_q_pre_ln_th + eps_ln).std(-1).view(1,-1, 1).unsqueeze(-1) # (batch,src_len,1,1)
+            transformed_vectors = l_transform(out_qv_pre_ln, w_ln)*ln_std_coef # (batch,src_len,tgt_len,embed_dim)
+            dense_bias_term = l_transform(b_o, w_ln)*ln_std_coef # (batch,src_len,1,embed_dim)
+            attn_output = transformed_vectors.sum(dim=2) # (batch,seq_len,embed_dim)
+            resultant = attn_output + dense_bias_term.squeeze(2) + b_ln # (batch,seq_len,embed_dim)
+            
+            # Assert resultant (decomposed attention block output) is equal to the real attention block output
+            out_q_th_2 = layer_outputs[f"models.0.{enc_dec_}.layers.{l}.{attn_module_}_layer_norm"][0].transpose(0, 1)
+            assert torch.dist(out_q_th_2, resultant).item() < 1e-3 * resultant.numel()
+            #print('res:', resultant.shape, 'trans:', transformed_vectors.shape)
+
+        if contrib_type == 'l1':
+            #print(transformed_vectors.shape)
+            #print(resultant.shape)
+            #print(torch.norm(transformed_vectors.sub(resultant.unsqueeze(2)), p=1, dim=-1).shape)
+            contributions = -torch.norm(transformed_vectors.sub(resultant.unsqueeze(2)), p=1, dim=-1)
+            #print(contributions.shape)
+            #contributions = -F.pairwise_distance(transformed_vectors.transform, resultant.unsqueeze(2), p=1)
+            #print('final_contrib', contributions.shape)
+            resultants_norm = torch.norm(torch.squeeze(resultant),p=1,dim=-1)
+            #print('final_res', resultants_norm.shape)
+
+        elif contrib_type == 'l2':
+            contributions = -F.pairwise_distance(transformed_vectors, resultant.unsqueeze(2), p=2)
+            resultants_norm = torch.norm(torch.squeeze(resultant),p=2,dim=-1)
+            #resultants_norm=None
+        elif contrib_type == 'koba':
+            contributions = torch.norm(transformed_vectors, p=2, dim=-1)
+            return contributions, None
+        else:
+            raise ArgumentError(f"contribution_type '{contrib_type}' unknown")
+    
+        return contributions, resultants_norm
 
     def relprop_attn(self, R, name, is_combined=False):
         def _split_heads(x, num_heads):
@@ -677,7 +620,11 @@ class FairseqTransformerHub(GeneratorHubInterface):
             ret = torch.reshape(x, list(x.shape[:-2]) + [x.shape[-2] * x.shape[-1]])
             ret = torch.reshape(x, new_shape)
             return ret
-        
+        enc_dec_ = name[0].split('.')[2]
+        l = name[0].split('.')[4]
+        attn_module_ = name[0].split('.')[5]
+
+        exit()
         attn_self = eval(name[1])
         #print(attn_self.forward())
  
@@ -685,9 +632,8 @@ class FairseqTransformerHub(GeneratorHubInterface):
         #print(R.shape)
         R = self.relprop_ffn(R, [x + '.out_proj' for x in name])
         R_split = _split_heads(R, attn_self.num_heads)
-        #print('original',self.layer_inputs[name[0]+'.out_proj'][0][0], self.layer_inputs[name[0]+'.out_proj'][0][0].transpose(0,1).shape)
+        print('original',self.layer_inputs[name[0]+'.out_proj'][0][0], self.layer_inputs[name[0]+'.out_proj'][0][0].shape)
         # note: we apply relprop for each independent sample and head in order to avoid quadratic memory growth
-        #print('q_input', self.layer_inputs[name[0]+'.q_proj'][0])
         q = self.layer_outputs[name[0]+'.q_proj'][0]#.transpose(0,1)
         k = self.layer_outputs[name[0]+'.k_proj'][0]#.transpose(0,1)
         v = self.layer_outputs[name[0]+'.v_proj'][0]#.transpose(0,1)
@@ -703,22 +649,22 @@ class FairseqTransformerHub(GeneratorHubInterface):
             (q, k, v)
         ) 
 
-        #attn_weights = torch.bmm(q, k.transpose(1, 2))
+        attn_weights = torch.bmm(q, k.transpose(1, 2))
 
 
         #print('attention',  name[0], 'q', q.shape,'k', k.shape,'v', v.shape)
         
-        #attn_weights = torch.bmm(q, k.transpose(1, 2))
-        #if  'decoder' in name[0] and 'self_attn' in name[0]:
-        #    flat_attn_mask = torch.tril(torch.ones_like(attn_weights), 0)
-        #    #print('flat_attn_mask', flat_attn_mask)
-        #else:
-        #    flat_attn_mask = torch.zeros_like(attn_weights)
+        attn_weights = torch.bmm(q, k.transpose(1, 2))
+        if  'decoder' in name[0] and 'self_attn' in name[0]:
+            flat_attn_mask = torch.tril(torch.ones_like(attn_weights), 0)
+            #print('flat_attn_mask', flat_attn_mask)
+        else:
+            flat_attn_mask = torch.zeros_like(attn_weights)
         
         q_flat, k_flat, v_flat = q, k, v
         dim_per_head = v_flat.shape[-1]
         batch_size, n_heads, n_q = R_split.shape[0], R_split.shape[1], R_split.shape[2]
-        #n_kv = flat_attn_mask.shape[2]
+        n_kv = flat_attn_mask.shape[2]
         R_flat = torch.reshape(R_split, [-1, n_q, dim_per_head])
         # ^-- *_flat variables are of shape: [(batch * n_heads), n_q, dim per head]
         
@@ -727,24 +673,12 @@ class FairseqTransformerHub(GeneratorHubInterface):
         flat_relevances = []
         #flat_attn_mask.requires_grad_()
         #print(flat_attn_mask.shape, q.shape
-        #print('self_computed', self.attn_core(attn_self, q, k, v)) #, attn_mask=flat_attn_mask.squeeze(0)))
-
-        if 'encoder' in name[0] and 'decoder' in name[0]:
-            attn_mask = None
-            key_padding_mask = torch.full([1, k.shape[1]], False)
-            #torch.tensor([[False, False, False, False, False, False, False, False, False, False]])
-        elif 'decoder' in name[0]:
-            attn_mask = torch.triu(torch.full([q.shape[1], q.shape[1]], float('-inf')), 1)
-            key_padding_mask = None
-        elif 'encoder' in name[0]:
-            attn_mask = None
-            key_padding_mask = torch.full([1, k.shape[1]], False) #torch.tensor([[False, False, False, False, False, False, False, False, False, False]])
         flat_relevances = LRP.relprop(
-                lambda q, k, v: self.attn_core(attn_self, q.transpose(0,1), k.transpose(0,1), v.transpose(0,1), attn_mask=attn_mask, key_padding_mask = key_padding_mask),
+                lambda q, k, v: self.attn_core(attn_self, q.transpose(0,1), k.transpose(0,1), v.transpose(0,1), attn_mask=flat_attn_mask.squeeze(0)),
                 R, q, k, v,
                 jacobians=None, #attn_jacobian(q_flat[i, None], k_flat[i, None], v_flat[i, None], flat_attn_mask[i, None]),
                 batch_axes=(0,))
-        #print([torch.sum(x, -1) for x in flat_relevances])
+        
         #for i in range(q_flat.shape[0]):
         #    flat_relevances.append(LRP.relprop(
         #        lambda q, k, v: self.attn_core(attn_self, q, k, v, attn_mask=flat_attn_mask[i, None]),
@@ -795,42 +729,43 @@ class FairseqTransformerHub(GeneratorHubInterface):
         R_enc_scale = 0.0
         R_orig = R
         for i in range(len(self.models[0].decoder.layers))[::-1]:
-            #print(i, torch.sum(R), R)
+            print(i, torch.sum(R), R)
             R = self.relprop_norm(R, self.get_name(i,'final_layer_norm',  'decoder'))
-            #print('final_norm', torch.sum(R), R)
-            R_res, R = self.relprop_add(R, self.get_name(i,'fc1', 'decoder'), self.get_name(i,'fc2', 'decoder'))
+            print('final_norm', torch.sum(R), R)
+            R, R_res = self.relprop_add(R, self.get_name(i,'fc1', 'decoder'), self.get_name(i,'fc2', 'decoder'))
             #exit()
-            #print('add', torch.sum(R), torch.sum(R_res), R)
+            print('add', torch.sum(R), torch.sum(R_res), R)
             R = self.relprop_ffn(R, self.get_name(i,'fc2', 'decoder'))
             R = self.relprop_ffn(R, self.get_name(i,'fc1', 'decoder'))
-            #print('ffn', torch.sum(R), R)
+            print('ffn', torch.sum(R), R)
             R = self.relprop_residual(R, R_res, None, self.get_name(i,'fc1', 'decoder'), self.get_name(i,'fc2', 'decoder'))
-            #print('residual', torch.sum(R), R)
+            print('residual', torch.sum(R), R)
             R = self.relprop_norm(R, self.get_name(i,'encoder_attn_layer_norm', 'decoder'))
-            #print('norm', torch.sum(R), R)
+            print('norm', torch.sum(R), R)
             #exit()
             original_scale = torch.sum(R)
-            R_res, R = self.relprop_add(R, self.get_name(i,'encoder_attn.q_proj', 'decoder'), self.get_name(i,'encoder_attn.out_proj', 'decoder'))
-            #print('add', torch.sum(R), torch.sum(R_res), R, R_res)
+            R, R_res = self.relprop_add(R, self.get_name(i,'encoder_attn.q_proj', 'decoder'), self.get_name(i,'encoder_attn.out_proj', 'decoder'))
+            print('add', torch.sum(R), torch.sum(R_res), R, R_res)
             #exit()
             #possibly another layernorm here attn_ln 
             relevance_dict = self.relprop_attn(R, self.get_name(i,'encoder_attn', 'decoder'))
-            #print('encoder_attn', torch.sum(relevance_dict['query_inp']), torch.sum(relevance_dict['kv_inp']), relevance_dict)
+            print('encoder_attn', torch.sum(relevance_dict['query_inp']), torch.sum(relevance_dict['kv_inp']), relevance_dict)
+            exit()
             relevance_dict = self.relprop_residual(relevance_dict, R_res, original_scale, self.get_name(i,'encoder_attn', 'decoder'), self.get_name(i,'encoder_attn', 'decoder'))
-            #print('residual', torch.sum(relevance_dict['query_inp']), torch.sum(relevance_dict['kv_inp']), relevance_dict)
+            print('residual', torch.sum(relevance_dict['query_inp']), torch.sum(relevance_dict['kv_inp']), relevance_dict)
             R = relevance_dict['query_inp']
             R_enc += relevance_dict['kv_inp']
             R_enc_scale += torch.sum(torch.abs(relevance_dict['kv_inp']))
-            #print('residual_added', 'R', torch.sum(R), 'R_enc', torch.sum(R_enc), relevance_dict)
+            print('residual_added', 'R', torch.sum(R), 'R_enc', torch.sum(R_enc), relevance_dict)
             #exit()
             R = self.relprop_norm(R, self.get_name(i,'self_attn_layer_norm', 'decoder'))
-            #print('norm', torch.sum(R), R)
-            R_res, R = self.relprop_add(R, self.get_name(i,'self_attn.q_proj', 'decoder'), self.get_name(i,'self_attn.out_proj', 'decoder'))
-            #print('add', torch.sum(R), torch.sum(R_res), R, R_res)
+            print('norm', torch.sum(R), R)
+            R, R_res = self.relprop_add(R, self.get_name(i,'self_attn.q_proj', 'decoder'), self.get_name(i,'self_attn.out_proj', 'decoder'))
+            print('add', torch.sum(R), torch.sum(R_res), R, R_res)
             R = self.relprop_attn(R, self.get_name(i,'self_attn', 'decoder'), True)
-            #print('self_attn', torch.sum(R), R)
+            print('self_attn', torch.sum(R), R)
             R = self.relprop_residual(R, R_res, None, self.get_name(i,'self_attn', 'decoder'), self.get_name(i,'self_attn', 'decoder'))
-            #print('residual', torch.sum(R), R)
+            print('residual', torch.sum(R), R)
         # shift left: compensate for right shift
         R_crop = F.pad(input=R, pad=(0, 0, 0, 1, 0, 0), mode='constant', value=0)[:, 1:, :]
         return {'emb_out': R_crop, 'enc_out': R_enc * R_enc_scale / torch.sum(torch.abs(R_enc)),
@@ -840,24 +775,24 @@ class FairseqTransformerHub(GeneratorHubInterface):
     def relprop_encode(self, R):
         """ propagates relevances from enc_out to emb_inp """
         for i in range(len(self.models[0].encoder.layers))[::-1]:
-            #print('encoder', i, torch.sum(R, -1))
+            print('encoder', i, torch.sum(R, -1))
             R = self.relprop_norm(R, self.get_name(i,'final_layer_norm', 'encoder'))
-            #print('norm', torch.sum(R), R)
-            R_res, R = self.relprop_add(R, self.get_name(i,'fc1', 'encoder'), self.get_name(i,'fc2', 'encoder'))
-            #print('add', torch.sum(R), torch.sum(R_res), R, R_res)
+            print('norm', torch.sum(R), R)
+            R, R_res = self.relprop_add(R, self.get_name(i,'fc1', 'encoder'), self.get_name(i,'fc2', 'encoder'))
+            print('add', torch.sum(R), torch.sum(R_res), R, R_res)
             R = self.relprop_ffn(R, self.get_name(i,'fc2', 'encoder'))
-            #print('fc2', torch.sum(R), R)
+            print('fc2', torch.sum(R), R)
             R = self.relprop_ffn(R, self.get_name(i,'fc1', 'encoder'))
-            #print('fc1', torch.sum(R), R)
+            print('fc1', torch.sum(R), R)
             R = self.relprop_residual(R, R_res, None, self.get_name(i,'fc1', 'encoder'), self.get_name(i,'fc2', 'encoder'))
-            #print('residual', torch.sum(R), R)
+            print('residual', torch.sum(R), R)
             R = self.relprop_norm(R, self.get_name(i,'self_attn_layer_norm', 'encoder'))
-            #print('norm', torch.sum(R), R)
-            R_res, R = self.relprop_add(R, self.get_name(i,'self_attn.q_proj', 'encoder'), self.get_name(i,'self_attn.out_proj', 'encoder'))
-            #print('add', torch.sum(R), torch.sum(R_res), R, R_res)
+            print('norm', torch.sum(R), R)
+            R, R_res = self.relprop_add(R, self.get_name(i,'self_attn.q_proj', 'encoder'), self.get_name(i,'self_attn.out_proj', 'encoder'))
+            print('add', torch.sum(R), torch.sum(R_res), R, R_res)
             R = self.relprop_attn(R, self.get_name(i,'self_attn', 'encoder'), True)
-            #print('attn', torch.sum(R), R)
+            print('attn', torch.sum(R), R)
             R = self.relprop_residual(R, R_res, None, self.get_name(i,'self_attn', 'encoder'), self.get_name(i,'self_attn', 'encoder'))
-            #print('residual', torch.sum(R), R)
+            print('residual', torch.sum(R), R)
         return R
 

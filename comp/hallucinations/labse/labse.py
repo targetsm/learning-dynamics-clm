@@ -19,7 +19,7 @@ model = SentenceTransformer('sentence-transformers/LaBSE')
 
 for key in file_dict.keys():
     try:
-        with open('labse.pkl', 'rb') as f:
+        with open('labse_source.pkl', 'rb') as f:
             similarity_dict = pickle.load(f)
     except:
         similarity_dict = {}
@@ -27,14 +27,14 @@ for key in file_dict.keys():
         continue
     print(key)
     lines = open(file_dict[key], 'r').readlines()
-    targets = [x.split('\t')[-1][:-1].replace(' ', '').replace('▁', ' ') for x in lines if x[0] == 'T']
+    targets = [x.split('\t')[-1][:-1].replace(' ', '').replace('▁', ' ') for x in lines if x[0] == 'S']
     hypos = [x.split('\t')[-1][:-1].replace(' ', '').replace('▁', ' ') for x in lines if x[0] == 'H']
-
+    
         
     hypo_emb = model.encode(hypos)
     target_emb = model.encode(targets)
     similarities = cosine_similarity(hypo_emb, target_emb)
     similarity_dict[key] = (np.mean(similarities), np.std(similarities), np.mean(nsmallest(100, similarities)))
     print(sorted(similarity_dict.items(), key=lambda x: x[0]))
-    with open('labse.pkl', 'wb') as f:
+    with open('labse_source.pkl', 'wb') as f:
         pickle.dump(similarity_dict, f)

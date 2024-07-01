@@ -38,13 +38,14 @@ red_color = '#B85450'
 
 alti_dict = dict()
 #directory = "/cluster/scratch/ggabriel/ma/tm/checkpoints/"
-#directory = "../../models/tm/checkpoints/analysis"
-directory = "./small_model/checkpoints/"
+directory = "../../models/tm/checkpoints/analysis"
+#directory = "./small_model/checkpoints/"
 dir_out = './' # set the directory to save the results
 result = {}
 
-for f in ["checkpoint_last.pt"]: #os.listdir(os.fsencode(directory)):
-    
+for f in ["100.pt", "200.pt", "300.pt", "400.pt", "500.pt", "600.pt", "700.pt", "800.pt", "900.pt"]:
+#for f in ['checkpoint_last.pt']: #["100000.pt"]: #os.listdir(os.fsencode(directory)):
+#for f in os.listdir(os.fsencode(directory)):   
     filename = os.fsdecode(f)
     print(filename)
     result[filename] = []
@@ -52,8 +53,11 @@ for f in ["checkpoint_last.pt"]: #os.listdir(os.fsencode(directory)):
     hub = FairseqTransformerHub.from_pretrained(
         checkpoint_dir=directory,
         checkpoint_file=filename,
-        data_name_or_path="../data-bin/iwslt14.sep.tokenized.de-en/",
+        #data_name_or_path="../data-bin/iwslt14.sep.tokenized.de-en/",
+        data_name_or_path="../../data-bin/iwslt14.sep.tokenized.de-en/",
+
         )
+    #hub.models[0].to('cuda')
     # Get sample from provided test data
     total_source_contribution = 0
     total_target_contribution = 0
@@ -73,7 +77,7 @@ for f in ["checkpoint_last.pt"]: #os.listdir(os.fsencode(directory)):
             tgt_tok = sample['tgt_tok']
             source_sentence = sample['src_tok']
             target_sentence = sample['tgt_tok']
-        
+            print(source_sentence)
         if data_sample == 'interactive':
             # index in dataset
             # i = 27 # index in dataset
@@ -96,7 +100,7 @@ for f in ["checkpoint_last.pt"]: #os.listdir(os.fsencode(directory)):
             pred_log_probs, pred_tensor = torch.max(log_probs, dim=-1)
             predicted_sentence = hub.decode(pred_tensor, hub.task.tgt_dict)
             pred_sent = hub.decode(pred_tensor, hub.task.tgt_dict, as_string=True)
-            #print(f"Predicted sentence: \t {pred_sent}")
+            print(f"Predicted sentence: \t {pred_sent}")
         #print(source_sentence)
         R_ = torch.zeros(log_probs.shape)
         inp_lrp = []
@@ -105,6 +109,7 @@ for f in ["checkpoint_last.pt"]: #os.listdir(os.fsencode(directory)):
             R_ = torch.zeros([1] + list(log_probs.shape)) #shape same as original lrp
             R_[0, i,pred_tensor[i]] = 1
             R = hub.relprop_ffn(R_, ("models.0.decoder.output_projection", "self.models[0].decoder.output_projection")) #model.loss._rdo_to_logits.relprop(R_)
+            #print(R)
             R = hub.relprop_decode(R)
             R_inp = torch.sum(torch.abs(hub.relprop_encode(R['enc_out'])), dim=-1)
             R_out = torch.sum(torch.abs(R['emb_out']), dim=-1)
@@ -112,10 +117,11 @@ for f in ["checkpoint_last.pt"]: #os.listdir(os.fsencode(directory)):
             inp_lrp.append(R_inp[0])
             out_lrp.append(R_out_uncrop[0])        
             torch.cuda.empty_cache()
+            #print(source_sentence, target_sentence, predicted_sentence)
             #print(R_inp[0], torch.sum(R_inp), R_out_uncrop[0], torch.sum(R_out_uncrop))
-        result[filename].append({'src': source_sentence, 'dst': target_sentence,
+            #exit()
+        result[filename].append({'src': source_sentence, 'dst': target_sentence, 'prd': predicted_sentence,
                    'inp_lrp': np.array(inp_lrp), 'out_lrp': np.array(out_lrp)})
-        
-        print(result[filename])
+        print(result[filename], 'inp', torch.sum(torch.stack(inp_lrp), -1), 'out',  torch.sum(torch.stack(out_lrp), -1), torch.mean(torch.sum(torch.stack(inp_lrp), -1)), torch.mean(torch.sum(torch.stack(out_lrp), -1)))
 import pickle
 pickle.dump(result, open(dir_out + 'lrp_results', 'wb'))

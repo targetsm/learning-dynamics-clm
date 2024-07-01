@@ -16,6 +16,8 @@ def jacobian(out, inps, function):
     with torch.enable_grad():
         flat_out = torch.reshape(out, [-1])
         flat_jac_components = []    
+        #print(out.shape, [x.shape for x in inps])
+        #exit()
         #print(out.shape)
         #return [torch.ones( list(out.shape)+ list(inp.shape)) for inp in inps]
         #for i in range(flat_out.shape[0]):
@@ -24,6 +26,7 @@ def jacobian(out, inps, function):
         #print('jac', flat_jac_components)
         jac_components = [torch.reshape(flat_jac, list(out.shape)+ list(inp.shape))
                         for flat_jac, inp in zip(flat_jac_components, inps)]
+        #print("jac_components:", jac_components)
     return jac_components
 
 class LRP:
@@ -52,12 +55,17 @@ class LRP:
 
         """
         with torch.enable_grad():
+            #print('inputs', [x.shape for x in inps], inps)
+            #print('output_relevance', torch.sum(output_relevance), output_relevance)
+            
             assert len(inps) > 0, "please provide at least one input"
             alpha, beta, eps = cls.alpha, cls.beta, cls.eps
             inps = [inp.clone().requires_grad_() for inp in inps]
             reference_inputs = reference_inputs or tuple(map(torch.zeros_like, inps))
             assert len(reference_inputs) == len(inps)
             output = function(*inps)
+            #print('self_computed', output, output.shape)
+            #exit()
             reference_output = reference_output if reference_output is not None else function(*reference_inputs)
             assert isinstance(output, torch.Tensor) and isinstance(reference_output, torch.Tensor)
             flat_output_relevance = torch.reshape(output_relevance, [-1])
@@ -108,7 +116,7 @@ class LRP:
                 input_relevances.append(inp_relevance)
                 offset = offset + inp_size
             
-            #print('input_relevances', [torch.sum(inp) for inp in input_relevances])
+            #print('input_relevances_end', [torch.sum(inp) for inp in input_relevances], input_relevances)
             #print(torch.sum(output_relevance))
             return cls.rescale(output_relevance, *input_relevances, batch_axes=batch_axes, **kwargs)
 
@@ -119,16 +127,18 @@ class LRP:
             assert isinstance(batch_axes, (tuple, list))
             #print('input', inputs)
             get_summation_axes = lambda tensor: tuple(i for i in range(len(tensor.shape)) if i not in batch_axes)
+            #print('get_summation_axes', get_summation_axes(reference))
             ref_scale = torch.sum(abs(reference), dim=get_summation_axes(reference), keepdim=True)
             inp_scales = [torch.sum(abs(inp), dim=get_summation_axes(inp), keepdim=True) for inp in inputs]
             #ref_scale = torch.sum(abs(reference))
             total_inp_scale = sum(inp_scales) + cls.eps
-            inputs = [inputs[i] * (ref_scale / (inp_scales[i]+cls.eps)) for i in range(len(inputs))]
-            #print([torch.sum(inps) for inps in inputs])
+            #print('ref_scale', ref_scale, 'total_inp_scale', total_inp_scale, 'inp_scales', inp_scales)
+            inputs = [inputs[i] * (ref_scale / total_inp_scale) for i in range(len(inputs))]
+            #print('inputs_out', [torch.sum(inps) for inps in inputs], inputs)
         return inputs[0] if len(inputs) == 1 else inputs
 
 
-def relprop_add(output_relevance, *inputs, hid_axis=-1, **kwargs):
+def relprop_add_legacy(output_relevance, *inputs, hid_axis=-1, **kwargs):
     """ relprop through elementwise addition of tensors of the same shape """
     input_shapes = [x.shape for x in inputs]
     #tiled_input_shape = reduce(tf.broadcast_dynamic_shape, input_shapes) # no idea what this part does
