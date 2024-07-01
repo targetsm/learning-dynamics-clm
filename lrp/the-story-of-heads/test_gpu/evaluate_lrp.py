@@ -26,29 +26,57 @@ hp = {
      "ffn_type": "conv_relu",
      "hid_size": 128,
      "emb_size": 128,
-     "res_steps": "nlda",
-
+     "res_steps": "nlda", 
+    
      "rescale_emb": True,
      "inp_emb_bias": True,
      "normalize_out": True,
      "share_emb": False,
      "replace": 0,
-
+    
      "relu_dropout": 0.1,
      "res_dropout": 0.1,
      "attn_dropout": 0.1,
      "label_smoothing": 0.1,
-
+    
      "translator": "ingraph",
-     "beam_size": 1,
+     "beam_size": 4,
      "beam_spread": 3,
      "len_alpha": 0.6,
      "attn_beta": 0,
-}
+    }
+
+#hp = {
+#     "num_layers": 6,
+#     "num_heads": 8,
+#     "ff_size": 2048,
+#     "ffn_type": "conv_relu",
+#     "hid_size": 512,
+#     "emb_size": 512,
+#     "res_steps": "nlda",
+#
+#     "rescale_emb": True,
+#     "inp_emb_bias": True,
+#     "normalize_out": True,
+#     "share_emb": False,
+#     "replace": 0,
+#
+#     "relu_dropout": 0.1,
+#     "res_dropout": 0.1,
+#     "attn_dropout": 0.1,
+#     "label_smoothing": 0.1,
+#
+#     "translator": "ingraph",
+#     "beam_size": 4,
+#     "beam_spread": 3,
+#     "len_alpha": 0.6,
+#     "attn_beta": 0,
+#    }
+
 
 model = tr.Model('mod', inp_voc, out_voc, inference_mode='fast', **hp)
 
-path_to_ckpt = './build/checkpoint/model-latest.npz'
+path_to_ckpt = './build_cpu/checkpoint/model-latest.npz'
 var_list = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)
 lib.train.saveload.load(path_to_ckpt, var_list)
 datadir = '../data/'
@@ -95,20 +123,15 @@ with rec.recording_activations() as saved_activations, dropout_scope(False):
     R = model.loss._rdo_to_logits.relprop(R_)
     R = model.transformer.relprop_decode(R)
     
-    #print_op = tf.print(R['emb_out'], [R['emb_out']])
-    #with tf.control_dependencies([print_op]):
-    #  out = tf.add(R['emb_out'], R['emb_out'])
-    #out = None
     R_out = tf.reduce_sum(abs(R['emb_out']), axis=-1)
     encoder, print_enc = model.transformer.relprop_encode(R['enc_out'])
-    R['print_out'] += print_enc
+    #R['print_out'] += print_enc
     R_inp = tf.reduce_sum(abs(encoder), axis=-1)
     R_out_uncrop = tf.reduce_sum(abs(R['emb_out_before_crop']), axis=-1)
 
 dir_out = './' # set the directory to save the results
 result = []
 for elem in zip(test_src, test_dst):
-    #print(len(result))
     src = elem[0].strip()
     dst = elem[1].strip()
     dst_words = len(dst.split()) + 1
@@ -118,18 +141,17 @@ for elem in zip(test_src, test_dst):
     inp_lrp = []
     out_lrp = []
     for token_pos in range(feed_dict['out'].shape[1]):
-        #print(elem, token_pos, feed)
         feed[target_position] = token_pos
-        res_tot, res_inp, res_out, r_uncrop, r_, log = sess.run((R, R_inp, R_out, R_out_uncrop, R_, logits), feed)
-        #print('R_', r_.shape, np.nonzero(r_), r_[np.nonzero(r_)])
-        #print(log.shape)
-        #print(R)
-        #print(b)
+        res_tot, res_inp, res_out, r_uncrop= sess.run((R, R_inp, R_out, R_out_uncrop), feed)
+        print(res_inp, np.sum(res_inp[0]))
+        print(r_uncrop, np.sum(r_uncrop))
         exit()
         inp_lrp.append(res_inp[0])
         out_lrp.append(r_uncrop[0])
     result.append({'src': src, 'dst': dst,
                    'inp_lrp': np.array(inp_lrp), 'out_lrp': np.array(out_lrp)
                   })
-    
+    print(result, np.mean(np.sum(np.array(inp_lrp), -1)), np.mean(np.sum(np.array(out_lrp), -1)))
+    exit()
 pickle.dump(result, open(dir_out + 'lrp_results', 'wb'))
+

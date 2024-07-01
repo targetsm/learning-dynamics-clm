@@ -4,7 +4,6 @@ from functools import reduce
 import tensorflow as tf
 from ..ops import record_activations as rec
 
-
 def jacobian(out, inps):
     """
     :param out: a single tensor functionally dependent on all of inps
@@ -30,10 +29,9 @@ class LRP:
     use_alpha_beta = True  # if False, uses simplified LRP rule:  R_i =  R_j * z_ji / ( z_j + eps * sign(z_j) )
     consider_attn_constant = False  # used by MultiHeadAttn, considers gradient w.r.t q/k zeros
     norm_axis = 1
-
     @classmethod
     def relprop(cls, function, output_relevance, *inps, reference_inputs=None,
-                reference_output=None, jacobians=None, batch_axes=(0,), **kwargs):
+                reference_output=None, jacobians=None, batch_axes=(0,), Flag=False, **kwargs):
         """
         computes input relevance given output_relevance using z+ rule
         works for linear layers, convolutions, poolings, etc.
@@ -49,6 +47,9 @@ class LRP:
         """
         assert len(inps) > 0, "please provide at least one input"
         with rec.do_not_record():
+            print_out = []
+            #print_out.append(tf.print('inputs', [tf.shape(x) for x in inps], inps))
+            #print_out.append(tf.print('output_relevance', tf.reduce_sum(output_relevance), output_relevance))
             alpha, beta, eps = cls.alpha, cls.beta, cls.eps
             inps = [inp for inp in inps]
 
@@ -109,41 +110,84 @@ class LRP:
                 inp_relevance.set_shape(inp.shape)
                 input_relevances.append(inp_relevance)
                 offset = offset + inp_size
-
+            if Flag:
+                #print_out.append(tf.print('input_relevances_end', [tf.reduce_sum(x) for x in input_relevances], input_relevances))
+                #print_out.append(tf.print('output_relevance_end', tf.reduce_sum(output_relevance), output_relevance))
+                p_out, *output = cls.rescale(output_relevance, *input_relevances, batch_axes=batch_axes, Flag=True, **kwargs)
+                #print_out.append(p_out)
+                return print_out, output
             return cls.rescale(output_relevance, *input_relevances, batch_axes=batch_axes, **kwargs)
 
     @classmethod
-    def rescale(cls, reference, *inputs, batch_axes=(0,)):
+    def rescale(cls, reference, *inputs, batch_axes=(0,), Flag=False):
         assert isinstance(batch_axes, (tuple, list))
+        print_out = []
         get_summation_axes = lambda tensor: tuple(i for i in range(tensor.shape.ndims) if i not in batch_axes)
+        #print_out.append(tf.print('get_summation_axes', get_summation_axes(reference)))
         ref_scale = tf.reduce_sum(abs(reference), axis=get_summation_axes(reference), keep_dims=True)
         inp_scales = [tf.reduce_sum(abs(inp), axis=get_summation_axes(inp), keep_dims=True) for inp in inputs]
         total_inp_scale = sum(inp_scales) + cls.eps
+        #print_out.append(tf.print('ref_scale', ref_scale, 'total_inp_scale', total_inp_scale, 'inp_scales', inp_scales))
         inputs = [inp * (ref_scale / total_inp_scale) for inp in inputs]
+        if Flag:
+            #print_out.append(tf.print('inputs_out', [tf.reduce_sum(x) for x in inputs], inputs))
+            return print_out, inputs[0] if len(inputs) == 1 else inputs
         return inputs[0] if len(inputs) == 1 else inputs
 
 
-def relprop_add(output_relevance, *inputs, hid_axis=-1, **kwargs):
+def relprop_add(output_relevance, print_out, *inputs, hid_axis=-1, **kwargs):
     """ relprop through elementwise addition of tensors of the same shape """
+    #print_out.append(tf.print('relprop_add', output_relevance, inputs, tf.reduce_sum(output_relevance)))
     input_shapes = [tf.shape(x) for x in inputs]
     tiled_input_shape = reduce(tf.broadcast_dynamic_shape, input_shapes)
+    #print_out.append(tf.print('relprop_add, input_shapes', input_shapes, tiled_input_shape))
+
     inputs_tiled = [tf.tile(inp, tiled_input_shape // inp_shape) for inp, inp_shape in zip(inputs, input_shapes)]
+    #print_out.append(tf.print('shape inputs tiled', [tf.shape(x) for x in inputs_tiled], inputs_tiled))
     hid_size = tf.shape(inputs[0])[hid_axis]
+    #print_out.append(tf.print('hid_size', hid_size))
     inputs_tiled_flat = [tf.reshape(inp, [-1, hid_size]) for inp in inputs_tiled]
+    #print_out.append(tf.print('shape inputs tiled flat', [tf.shape(x) for x in inputs_tiled_flat], inputs_tiled_flat))    
     output_relevance_flat = tf.reshape(output_relevance, [-1, hid_size])
+    #print_out.append(tf.print('output_relevance_flat', tf.shape(output_relevance_flat), output_relevance_flat))
+    #print_out.append(tf.print('output_relevance_flat', tf.reduce_sum(output_relevance_flat), output_relevance_flat))
+    #flat_input_relevances_tiled = [[],[]]
+    #for i in range(tf.shape(inputs_tiled_flat[0])[0].value()):
+    #    out = [x[..., 0, :] for x in
+    #                LRP.relprop(lambda *inputs: sum(inputs), output_relevance_flat[i, None],
+    #                            *[flat_inp[i, None] for flat_inp in inputs_tiled_flat],
+    #                            jacobians=[tf.eye(hid_size)[None, :, None, :] for _ in range(len(inputs))],
+    #                            batch_axes=(0,), **kwargs)]
+    #
+    #    flat_input_relevances_tiled[0].append(out[0])
+    #    flat_input_relevances_tiled[1].append(out[1])
+    #flat_input_relevances_tiled[0] = tf.stack(flat_input_relevances_tiled[0])
+    #flat_input_relevances_tiled[1] = tf.stack(flat_input_relevances_tiled[1])
+    #flat_input_relevances_tiled = tf.map_fn(
+    #    lambda i: [x[..., 0, :] for x in
+    #               LRP.relprop(lambda *inputs: sum(inputs), output_relevance_flat[i, None], *[flat_inp[i, None] for flat_inp in inputs_tiled_flat],
+    #                           jacobians=[tf.eye(hid_size)[None, :, None, :] for _ in range(len(inputs))],
+    #                           batch_axes=(0,), **kwargs)],
+    #    elems=tf.range(tf.shape(inputs_tiled_flat[0])[0]),
+    #    dtype=[flat_inp.dtype for flat_inp in inputs_tiled_flat],
+    #    parallel_iterations=2 ** 10)
+    i = 0
+    #p_out, flat_input_relevances_tiled, = LRP.relprop(lambda *inputs: sum(inputs), output_relevance_flat[i, None], *[flat_inp[i, None] for flat_inp in inputs_tiled_flat],
+    #                           jacobians=[tf.eye(hid_size)[None, :, None, :] for _ in range(len(inputs))],
+    #                           batch_axes=(0,), Flag=True,**kwargs)
+    #print_out.append(p_out)
     flat_input_relevances_tiled = tf.map_fn(
         lambda i: [x[..., 0, :] for x in
-                   LRP.relprop(lambda *inputs: sum(inputs), output_relevance_flat[i, None],
-                               *[flat_inp[i, None] for flat_inp in inputs_tiled_flat],
+                   LRP.relprop(lambda *inputs: sum(inputs), output_relevance_flat[i, None], *[flat_inp[i, None] for flat_inp in inputs_tiled_flat],
                                jacobians=[tf.eye(hid_size)[None, :, None, :] for _ in range(len(inputs))],
                                batch_axes=(0,), **kwargs)],
         elems=tf.range(tf.shape(inputs_tiled_flat[0])[0]),
         dtype=[flat_inp.dtype for flat_inp in inputs_tiled_flat],
-        parallel_iterations=2 ** 10)
-
+        parallel_iterations=2 ** 10) 
+    #print_out.append(tf.print('flat_input_reelacnes_tiled', [tf.shape(x) for x in flat_input_relevances_tiled], flat_input_relevances_tiled))
     input_relevances_tiled = list(map(tf.reshape, flat_input_relevances_tiled, [tiled_input_shape] * len(inputs)))
     input_relevances = list(map(lrp_sum_to_shape, input_relevances_tiled, input_shapes))
-
+    #print_out.append(tf.print('input_relevances', [tf.reduce_sum(x) for x in input_relevances], input_relevances))
     return input_relevances
 
 

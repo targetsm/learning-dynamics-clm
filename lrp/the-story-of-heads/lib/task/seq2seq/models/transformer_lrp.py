@@ -205,23 +205,27 @@ class Transformer:
 
     def relprop_decode(self, R):
         """ propagates relevances from rdo to output embeddings and encoder state """
+        print_out = []
         if self.normalize_out:
             R = self.dec_out_norm.relprop(R)
+            #print_out.append(tf.print('decoder', 'norm_out', R, tf.reduce_sum(R)))
 
         R_enc = 0.0
         R_enc_scale = 0.0
-        print_out = []
         for layer in range(self.num_layers_dec)[::-1]:
-            print_out.append(tf.print('decoder', layer, R, tf.reduce_sum(R)))
-            R = self.dec_ffn[layer].relprop(R)
-            print_out.append(tf.print('ffn', layer, R, tf.reduce_sum(R)))
-            relevance_dict = self.dec_enc_attn[layer].relprop(R, main_key='query_inp')
+            #print_out.append(tf.print('decoder', layer, R, tf.reduce_sum(R)))
+            R, _ = self.dec_ffn[layer].relprop(R, [])
+            #print_out.append(tf.print('ffn', layer, R, tf.reduce_sum(R)))
+            relevance_dict, _= self.dec_enc_attn[layer].relprop(R, print_out, main_key='query_inp')
+            print_out.append(tf.print('dec_enc_attn', layer, 'query_inp', relevance_dict['query_inp'], tf.reduce_sum(relevance_dict['query_inp']), 'kv_inp', relevance_dict['kv_inp'], tf.reduce_sum(relevance_dict['kv_inp'])))
+
             R = relevance_dict['query_inp']
             R_enc += relevance_dict['kv_inp']
             R_enc_scale += tf.reduce_sum(abs(relevance_dict['kv_inp']))
-            print_out.append(tf.print('dec_enc_attn', layer, 'query_inp', R, tf.reduce_sum(R), 'kv_inp', R_enc, tf.reduce_sum(R_enc)))
-            R = self.dec_attn[layer].relprop(R)
-            print_out.append(tf.print('dec_attn', layer, tf.reduce_sum(R), R))
+            #print_out.append(tf.print('dec_enc_attn', layer, 'query_inp', R, tf.reduce_sum(R), 'kv_inp', R_enc, tf.reduce_sum(R_enc)))
+            R, _ = self.dec_attn[layer].relprop(R, [])
+            #print_out.append(tf.print('dec_attn', layer, tf.reduce_sum(R), R))
+
         # shift kleft: compensate for right shift
         R_crop = tf.pad(R, [[0, 0], [0, 1], [0, 0]])[:, 1:, :]
         return {'emb_out': R_crop, 'enc_out': R_enc * R_enc_scale / tf.reduce_sum(abs(R_enc)),
@@ -233,11 +237,11 @@ class Transformer:
         if self.normalize_out:
             R = self.enc_out_norm.relprop(R)
         for layer in range(self.num_layers_enc)[::-1]:
-            print_out.append(tf.print('encoder', layer, tf.reduce_sum(R), R))
-            R = self.enc_ffn[layer].relprop(R)
-            print_out.append(tf.print('ffn', layer, tf.reduce_sum(R), R))
-            R = self.enc_attn[layer].relprop(R)
-            print_out.append(tf.print('enc_attn', layer, tf.reduce_sum(R), R))
+            #print_out.append(tf.print('encoder', layer, tf.reduce_sum(R), R))
+            R, _ = self.enc_ffn[layer].relprop(R, [])
+            #print_out.append(tf.print('ffn', layer, tf.reduce_sum(R), R))
+            R, _ = self.enc_attn[layer].relprop(R, [])
+            #print_out.append(tf.print('enc_attn', layer, tf.reduce_sum(R), R))
         return R, print_out
 
     def relprop_encode_decode(self, R):

@@ -267,38 +267,51 @@ class ResidualLayerWrapper(Wrapper):
                     raise RuntimeError("Unknown process step: %s" % s)
             return out
 
-    def relprop(self, R, main_key=None):
+    def relprop(self, R, print_out, main_key=None):
         with tf.variable_scope(self.scope):
             residual_inp, residual_update = rec.get_activations('residual_inp', 'residual_update')
         original_scale = tf.reduce_sum(abs(R))
         with tf.variable_scope(self.scope):
             Rinp_residual = 0.0
+
             for s in self.steps[::-1]:
                 if s == 'l':
+                    print_out.append(tf.print(f'{self.name}-residual-wrapped_layer-before', R, tf.reduce_sum(R)))
                     R = self.wrapped_layer.relprop(R)
+
                     if isinstance(R, dict):
                         assert main_key is not None
                         R_dict = R
                         R = R_dict[main_key]
+                        print_out.append(tf.print(f'{self.name}-residual-wrapped_layer-after', R_dict,
+                            tf.reduce_sum(R), tf.reduce_sum(R_dict['kv_inp'])))
                 elif s == 'a':
                     # residual layer: LRP through addition
-                    Rinp_residual, R = relprop_add(R, residual_inp, residual_update)
+                    print_out.append(tf.print(f'{self.name}-residual-addition-before', R, tf.reduce_sum(R)))
+                    Rinp_residual, R = relprop_add(R, print_out, residual_inp, residual_update)
+                    print_out.append(tf.print(f'{self.name}-residual-addition-after', R, tf.reduce_sum(R), 'residual', Rinp_residual, tf.reduce_sum(Rinp_residual)))
+
                 elif s == 'n':
+                    print_out.append(tf.print(f'{self.name}-residual-norm-before', R, tf.reduce_sum(R)))
                     R = self.norm_layer.relprop(R)
-
+                    print_out.append(tf.print(f'{self.name}-residual-norm-after', R, tf.reduce_sum(R)))
+             
+            print_out.append(tf.print(f'{self.name}-residual-scaling-before', R, tf.reduce_sum(R)))
             pre_residual_scale = tf.reduce_sum(abs(R) + abs(Rinp_residual))
-
+            
             R = R + Rinp_residual
             R = R * pre_residual_scale / tf.reduce_sum(tf.abs(R))
+            print_out.append(tf.print(f'{self.name}-residual-scaling-after', R, tf.reduce_sum(R)))
+
             if main_key is not None:
                 R_dict = dict(R_dict)
                 R_dict[main_key] = R
                 total_scale = sum(tf.reduce_sum(abs(relevance)) for relevance in R_dict.values())
                 R_dict = {key: value * original_scale / total_scale
                           for key, value in R_dict.items()}
-                return R_dict
+                return R_dict, print_out
             else:
-                return R
+                return R, print_out
 
 
 ###############################################################################
