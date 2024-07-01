@@ -43,9 +43,9 @@ directory = "../../models/tm/checkpoints/analysis"
 dir_out = './' # set the directory to save the results
 result = {}
 
-for f in ["100000.pt"]:
+for f in ["100.pt", "200.pt", "300.pt", "400.pt", "500.pt", "600.pt", "700.pt", "800.pt", "900.pt"]:
 #for f in ['checkpoint_last.pt']: #["100000.pt"]: #os.listdir(os.fsencode(directory)):
-    
+#for f in os.listdir(os.fsencode(directory)):   
     filename = os.fsdecode(f)
     print(filename)
     result[filename] = []
@@ -77,7 +77,7 @@ for f in ["100000.pt"]:
             tgt_tok = sample['tgt_tok']
             source_sentence = sample['src_tok']
             target_sentence = sample['tgt_tok']
-        
+            print(source_sentence)
         if data_sample == 'interactive':
             # index in dataset
             # i = 27 # index in dataset
@@ -109,7 +109,7 @@ for f in ["100000.pt"]:
             R_ = torch.zeros([1] + list(log_probs.shape)) #shape same as original lrp
             R_[0, i,pred_tensor[i]] = 1
             R = hub.relprop_ffn(R_, ("models.0.decoder.output_projection", "self.models[0].decoder.output_projection")) #model.loss._rdo_to_logits.relprop(R_)
-            print(R)
+            #print(R)
             R = hub.relprop_decode(R)
             R_inp = torch.sum(torch.abs(hub.relprop_encode(R['enc_out'])), dim=-1)
             R_out = torch.sum(torch.abs(R['emb_out']), dim=-1)
@@ -117,12 +117,11 @@ for f in ["100000.pt"]:
             inp_lrp.append(R_inp[0])
             out_lrp.append(R_out_uncrop[0])        
             torch.cuda.empty_cache()
-            print(source_sentence, target_sentence, predicted_sentence)
-            print(R_inp[0], torch.sum(R_inp), R_out_uncrop[0], torch.sum(R_out_uncrop))
+            #print(source_sentence, target_sentence, predicted_sentence)
+            #print(R_inp[0], torch.sum(R_inp), R_out_uncrop[0], torch.sum(R_out_uncrop))
             #exit()
-        result[filename].append({'src': source_sentence, 'dst': target_sentence,
+        result[filename].append({'src': source_sentence, 'dst': target_sentence, 'prd': predicted_sentence,
                    'inp_lrp': np.array(inp_lrp), 'out_lrp': np.array(out_lrp)})
         print(result[filename], 'inp', torch.sum(torch.stack(inp_lrp), -1), 'out',  torch.sum(torch.stack(out_lrp), -1), torch.mean(torch.sum(torch.stack(inp_lrp), -1)), torch.mean(torch.sum(torch.stack(out_lrp), -1)))
-        exit()
 import pickle
 pickle.dump(result, open(dir_out + 'lrp_results', 'wb'))

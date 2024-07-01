@@ -138,7 +138,7 @@ class LRP:
         return inputs[0] if len(inputs) == 1 else inputs
 
 
-def relprop_add(output_relevance, *inputs, hid_axis=-1, **kwargs):
+def relprop_add_legacy(output_relevance, *inputs, hid_axis=-1, **kwargs):
     """ relprop through elementwise addition of tensors of the same shape """
     input_shapes = [x.shape for x in inputs]
     #tiled_input_shape = reduce(tf.broadcast_dynamic_shape, input_shapes) # no idea what this part does
