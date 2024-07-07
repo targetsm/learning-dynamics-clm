@@ -1,6 +1,9 @@
 import pickle
 import numpy
-with open('plt/tl/alti_results.pkl', 'rb') as f:
+import sys
+
+dr = sys.argv[1]
+with open(f'plt/{dr}/alti_results.pkl', 'rb') as f:
     alti_dict = pickle.load(f)
 
 import matplotlib.pylab as plt
@@ -19,11 +22,11 @@ plt.grid(True)
 plt.xlabel("# steps")
 plt.ylabel("contribution")
 plt.yticks(numpy.arange(0, 1., 0.1))
-plt.savefig('plt/tl/alti_evolution.pdf')
+plt.savefig(f'plt/{dr}/alti_evolution.pdf')
 
 plt.xscale('log')
 plt.title('ALTI+ mean source and target prefix contributions over the course of training (lin-log)', loc='center', wrap=True)
 ticks = 10**numpy.arange(2,6)
 plt.xticks(ticks, ticks)
-plt.savefig('plt/tl/alti_evolution_log.pdf')
+plt.savefig(f'plt/{dr}/alti_evolution_log.pdf')
 
