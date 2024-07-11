@@ -36,23 +36,30 @@ red_color = '#B85450'
 # TODO: Code for itarting through the checkpoitns here
 #       Also add lists for results storing
 
-alti_dict = dict()
-directory = "/cluster/scratch/ggabriel/ma/tm/checkpoints/"
+import pickle
+try:
+    with open('alti_results.pkl', 'rb') as f:
+        alti_dict = pickle.load(f)
+except:
+    alti_dict = dict()
+directory = "/local/home/ggabriel/ma/models/tl/wmt22frde/tm/checkpoints/"
 for f in os.listdir(os.fsencode(directory)):
     filename = os.fsdecode(f)
     print(filename)
+    if 'best' in filename or 'last' in filename or int(filename.split('_')[-1][:-3]) in alti_dict:
+        continue
     
     hub = FairseqTransformerHub.from_pretrained(
         checkpoint_dir=directory,
         checkpoint_file=filename,
-        data_name_or_path="../data-bin/iwslt14.sep.tokenized.de-en/",
+        data_name_or_path="../data-bin/wmt22.sep.tokenized.fr-de/",
         )
     
     # Get sample from provided test data
     total_source_contribution = 0
     total_target_contribution = 0
-    len_testset_orig = len(open('./sentp_data/test.sentencepiece.de').readlines())
-    len_testset = 100
+    #len_testset_orig = len(open('./sentp_data/test.sentencepiece.de').readlines())
+    len_testset = 1000
     for i in range(len_testset):
         if data_sample == 'generate':
             # index in dataset
@@ -71,7 +78,7 @@ for f in os.listdir(os.fsencode(directory)):
         if data_sample == 'interactive':
             # index in dataset
             # i = 27 # index in dataset
-            test_set_dir = "./sentp_data/"
+            test_set_dir = "../../data/tl/wmt22frde/wmt22.sep.tokenized.fr-de"
             src = "de"
             tgt = "en"
             tokenizer = "sentencepiece"
@@ -152,6 +159,8 @@ for f in os.listdir(os.fsencode(directory)):
     step_number = int(filename.split('_')[-1][:-3])
     alti_dict[step_number] = (total_source_contribution, total_target_contribution)
     print(alti_dict)
+    with open('alti_results.pkl', 'wb') as f:
+        pickle.dump(alti_dict, f)
 
 # TODO: Add output logic here, save lists in a file
 import pickle 

@@ -81,10 +81,13 @@ class FairseqTransformerHub(GeneratorHubInterface):
     def get_interactive_sample(self, i, test_set_dir, src, tgt, tokenizer, hallucination=None):
         """Get interactive sample from tokenized and original word files."""
 
-        test_src_bpe = f'{test_set_dir}/test.{tokenizer}.{src}'
-        test_tgt_bpe = f'{test_set_dir}/test.{tokenizer}.{tgt}'
-        test_src_word = f'{test_set_dir}/test.{src}'
-        test_tgt_word = f'{test_set_dir}/test.{tgt}'
+        #test_src_bpe = f'{test_set_dir}/test.{tokenizer}.{src}'
+        #test_tgt_bpe = f'{test_set_dir}/test.{tokenizer}.{tgt}'
+        
+        test_src_bpe = f'{test_set_dir}/test.{src}'
+        test_tgt_bpe = f'{test_set_dir}/test.{tgt}'
+        test_src_word = f'{test_set_dir}/tmp/test.{src}'
+        test_tgt_word = f'{test_set_dir}/tmp/test.{tgt}'
 
         with open(test_src_bpe, encoding="utf-8") as fbpe:
             # BPE source sentences

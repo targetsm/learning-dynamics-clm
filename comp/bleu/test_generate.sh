@@ -1,7 +1,7 @@
 #!/bin/bash
 ulimit -m 12000000
 source $HOME/ma/alti/venv_alti/bin/activate
-cd $HOME/ma/models/tm
+cd $HOME/ma/models/tl/wmt22frde
 mkdir -p evaluation_generate
 
 for filename in checkpoints/analysis/*; do
