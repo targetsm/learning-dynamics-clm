@@ -1,0 +1,12 @@
+/local/home/ggabriel/ma/models/tl/wmt22frde/tm/checkpoints/analysis/100.pt
+100
+100
+[-5.9586277  -5.848896   -0.01454477 -6.72685    -6.361001   -5.876492
+ -6.532234   -6.3273544 ] [-10.216944   -9.903292   -2.8137856 ...  -8.074937  -10.443926
+  -9.352235 ]
+Traceback (most recent call last):
+  File "kl_on_time_efficient.py", line 68, in <module>
+    kl_loc += np.sum(np.multiply(np.exp(lm_scores[j]),(lm_scores[j] - tm_scores[j])))
+ValueError: operands could not be broadcast together with shapes (8,) (10032,) 
+/local/home/ggabriel/ma/models/tl/wmt22frde/tm/checkpoints/analysis/1000.pt
+1000
