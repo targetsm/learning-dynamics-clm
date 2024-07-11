@@ -39,10 +39,12 @@ class FairseqTransformerHub(GeneratorHubInterface):
         super().__init__(args, task, models)
         self.eval()
         self.to("cuda" if torch.cuda.is_available() else "cpu")
+        #self.device = "cuda" if torch.cuda.is_available() else "cpu"
     
     @classmethod
     def from_pretrained(cls, checkpoint_dir, checkpoint_file, data_name_or_path):
         hub_interface = TransformerModel.from_pretrained(checkpoint_dir, checkpoint_file, data_name_or_path)
+        hub_interface.models.to("cuda" if torch.cuda.is_available() else "cpu")
         return cls(hub_interface.args, hub_interface.task, hub_interface.models)
     
     def encode(self, sentence, dictionary):
@@ -359,9 +361,11 @@ class FairseqTransformerHub(GeneratorHubInterface):
 
         
         flat_inp_relevance = []
+        
         for i in range(flat_inp.shape[0]):
             flat_inp_relevance.append(LRP.relprop(linear_self, flat_out_relevance[i, None], flat_inp[i, None],
                                       jacobians=[linear_self.weight.data.T[None, :, None, :]], batch_axes=(0,))[0])
+        
         flat_inp_relevance = torch.stack(flat_inp_relevance).unsqueeze(0)
         input_relevance = LRP.rescale(output_relevance, flat_inp_relevance)
         return input_relevance
@@ -417,27 +421,6 @@ class FairseqTransformerHub(GeneratorHubInterface):
                 weights for each head. Implies *need_weights*. Default:
                 return the average attention weights over all heads.
         """
-        #attn_mask = None
-        #key_padding_mask = torch.tensor([[False, False, False, False, False, False, False, False, False, False]])
-        #if attn_self.self_attention and attn_self.:
-        #    attn_mask = torch.triu(torch.full([query.shape[0], query.shape[0]], float('-inf')), 1)
-        #    print(attn_mask)
-            #attn_mask = torch.tensor([[0., -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf],
-            #                [0., 0., -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf],
-            #                [0., 0., 0., -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf],
-            #                [0., 0., 0., 0., -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf],
-            #                [0., 0., 0., 0., 0., -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf],
-            #                [0., 0., 0., 0., 0., 0., -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf],
-            #                [0., 0., 0., 0., 0., 0., 0., -inf, -inf, -inf, -inf, -inf, -inf, -inf, -inf],
-            #                [0., 0., 0., 0., 0., 0., 0., 0., -inf, -inf, -inf, -inf, -inf, -inf, -inf],
-            #                [0., 0., 0., 0., 0., 0., 0., 0., 0., -inf, -inf, -inf, -inf, -inf, -inf],
-            #                [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., -inf, -inf, -inf, -inf, -inf],
-            #                [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., -inf, -inf, -inf, -inf],
-            #                [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., -inf, -inf, -inf],
-            #                [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., -inf, -inf],
-            #                [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., -inf],
-            #                [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]])
-        #    key_padding_mask = None
         if need_head_weights:
             need_weights = True
         tgt_len, bsz, embed_dim = query.size()
@@ -731,14 +714,14 @@ class FairseqTransformerHub(GeneratorHubInterface):
 
         if 'encoder' in name[0] and 'decoder' in name[0]:
             attn_mask = None
-            key_padding_mask = torch.full([1, k.shape[1]], False)
+            key_padding_mask = torch.full([1, k.shape[1]], False).to(self.device)
             #torch.tensor([[False, False, False, False, False, False, False, False, False, False]])
         elif 'decoder' in name[0]:
-            attn_mask = torch.triu(torch.full([q.shape[1], q.shape[1]], float('-inf')), 1)
+            attn_mask = torch.triu(torch.full([q.shape[1], q.shape[1]], float('-inf')), 1).to(self.device)
             key_padding_mask = None
         elif 'encoder' in name[0]:
             attn_mask = None
-            key_padding_mask = torch.full([1, k.shape[1]], False) #torch.tensor([[False, False, False, False, False, False, False, False, False, False]])
+            key_padding_mask = torch.full([1, k.shape[1]], False).to(self.device) #torch.tensor([[False, False, False, False, False, False, False, False, False, False]])
         flat_relevances = LRP.relprop(
                 lambda q, k, v: self.attn_core(attn_self, q.transpose(0,1), k.transpose(0,1), v.transpose(0,1), attn_mask=attn_mask, key_padding_mask = key_padding_mask),
                 R, q, k, v,

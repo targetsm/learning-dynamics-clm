@@ -57,7 +57,6 @@ class LRP:
         with torch.enable_grad():
             #print('inputs', [x.shape for x in inps], inps)
             #print('output_relevance', torch.sum(output_relevance), output_relevance)
-            
             assert len(inps) > 0, "please provide at least one input"
             alpha, beta, eps = cls.alpha, cls.beta, cls.eps
             inps = [inp.clone().requires_grad_() for inp in inps]

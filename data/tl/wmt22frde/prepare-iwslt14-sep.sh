@@ -25,7 +25,6 @@ orig=orig
 
 #mkdir -p $orig $tmp $prep
 #
-#
 #echo "pre-processing train data..."
 #for l in $src $tgt; do
 #    f=train.$l
@@ -71,7 +70,7 @@ orig=orig
 #    f=test.$l
 #    tok=test.tok.$l
 #
-#    cat $orig/$f | \
+#   cat $orig/$f | \
 #    grep -v '<url>' | \
 #    grep -v '<talkid>' | \
 #    grep -v '<keywords>' | \
@@ -85,7 +84,7 @@ orig=orig
 #for l in $src $tgt; do
 #    perl $LC < $tmp/test.tok.$l > $tmp/test.$l
 #done
-#
+
 #for l in $src $tgt; do
 #    #for o in `ls $orig/$lang/IWSLT14.TED*.$l.xml`; do
 #    #fname=${o##*/}
