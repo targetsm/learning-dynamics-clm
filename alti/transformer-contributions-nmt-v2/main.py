@@ -38,11 +38,11 @@ red_color = '#B85450'
 
 import pickle
 try:
-    with open('alti_results.pkl', 'rb') as f:
+    with open('alti_results_wmtxwmt.pkl', 'rb') as f:
         alti_dict = pickle.load(f)
 except:
     alti_dict = dict()
-directory = "/local/home/ggabriel/ma/models/tl/wmt22frde/tm/checkpoints/"
+directory = "/local/home/ggabriel/ma/models/tl/wmt22frde/wmt/tm/checkpoints/"
 for f in os.listdir(os.fsencode(directory)):
     filename = os.fsdecode(f)
     print(filename)
@@ -159,11 +159,11 @@ for f in os.listdir(os.fsencode(directory)):
     step_number = int(filename.split('_')[-1][:-3])
     alti_dict[step_number] = (total_source_contribution, total_target_contribution)
     print(alti_dict)
-    with open('alti_results.pkl', 'wb') as f:
+    with open('alti_results_wmtxwmt.pkl', 'wb') as f:
         pickle.dump(alti_dict, f)
 
 # TODO: Add output logic here, save lists in a file
 import pickle 
 
-with open('alti_results.pkl', 'wb') as f:
+with open('alti_results_wmtxwmt.pkl', 'wb') as f:
     pickle.dump(alti_dict, f)
