@@ -110,3 +110,15 @@
 2024-07-10 16:25:19 | INFO | valid | epoch 006 | valid on 'valid' subset | loss 4.332 | nll_loss 2.794 | ppl 6.93 | wps 51829.7 | wpb 2469 | bsz 83 | num_updates 87000 | best_loss 12.243
 2024-07-10 16:27:56 | INFO | valid | epoch 006 | valid on 'valid' subset | loss 4.312 | nll_loss 2.773 | ppl 6.84 | wps 51773.6 | wpb 2469 | bsz 83 | num_updates 87792 | best_loss 12.243
 2024-07-10 16:28:41 | INFO | valid | epoch 007 | valid on 'valid' subset | loss 4.321 | nll_loss 2.782 | ppl 6.88 | wps 51929.4 | wpb 2469 | bsz 83 | num_updates 88000 | best_loss 12.243
+2024-07-10 16:31:58 | INFO | valid | epoch 007 | valid on 'valid' subset | loss 4.323 | nll_loss 2.783 | ppl 6.88 | wps 51599.4 | wpb 2469 | bsz 83 | num_updates 89000 | best_loss 12.243
+2024-07-10 16:35:15 | INFO | valid | epoch 007 | valid on 'valid' subset | loss 4.327 | nll_loss 2.789 | ppl 6.91 | wps 51607.9 | wpb 2469 | bsz 83 | num_updates 90000 | best_loss 12.243
+2024-07-10 16:38:32 | INFO | valid | epoch 007 | valid on 'valid' subset | loss 4.331 | nll_loss 2.795 | ppl 6.94 | wps 51092.4 | wpb 2469 | bsz 83 | num_updates 91000 | best_loss 12.243
+2024-07-10 16:41:49 | INFO | valid | epoch 007 | valid on 'valid' subset | loss 4.318 | nll_loss 2.777 | ppl 6.85 | wps 51771 | wpb 2469 | bsz 83 | num_updates 92000 | best_loss 12.243
+2024-07-10 16:45:06 | INFO | valid | epoch 007 | valid on 'valid' subset | loss 4.311 | nll_loss 2.773 | ppl 6.84 | wps 51284.4 | wpb 2469 | bsz 83 | num_updates 93000 | best_loss 12.243
+2024-07-10 16:48:23 | INFO | valid | epoch 007 | valid on 'valid' subset | loss 4.301 | nll_loss 2.759 | ppl 6.77 | wps 51938.1 | wpb 2469 | bsz 83 | num_updates 94000 | best_loss 12.243
+2024-07-10 16:51:39 | INFO | valid | epoch 007 | valid on 'valid' subset | loss 4.305 | nll_loss 2.762 | ppl 6.79 | wps 51772.5 | wpb 2469 | bsz 83 | num_updates 95000 | best_loss 12.243
+2024-07-10 16:54:55 | INFO | valid | epoch 007 | valid on 'valid' subset | loss 4.29 | nll_loss 2.75 | ppl 6.73 | wps 51981.2 | wpb 2469 | bsz 83 | num_updates 96000 | best_loss 12.243
+2024-07-10 16:58:12 | INFO | valid | epoch 007 | valid on 'valid' subset | loss 4.291 | nll_loss 2.745 | ppl 6.7 | wps 51519.1 | wpb 2469 | bsz 83 | num_updates 97000 | best_loss 12.243
+2024-07-10 17:01:28 | INFO | valid | epoch 007 | valid on 'valid' subset | loss 4.275 | nll_loss 2.736 | ppl 6.66 | wps 51378.4 | wpb 2469 | bsz 83 | num_updates 98000 | best_loss 12.243
+2024-07-10 17:04:44 | INFO | valid | epoch 007 | valid on 'valid' subset | loss 4.268 | nll_loss 2.726 | ppl 6.61 | wps 51420.5 | wpb 2469 | bsz 83 | num_updates 99000 | best_loss 12.243
+2024-07-10 17:08:00 | INFO | valid | epoch 007 | valid on 'valid' subset | loss 4.268 | nll_loss 2.723 | ppl 6.6 | wps 51781.1 | wpb 2469 | bsz 83 | num_updates 100000 | best_loss 12.243
