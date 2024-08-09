@@ -15,7 +15,8 @@ raw_dir = "./data"
 source_fname = "target.en"  # file name of the source input
 hypo_fname = "pred.en"  # file name that you want to predict if they contain hallucinations based on the source
 path = sys.argv[1]
-
+name = path.split('/')[-2].split('_')[-1]
+print('name', name)
 path.split('/')[-2] 
 
 model_path = "./xsum"
@@ -24,7 +25,7 @@ opt_dir = "./outputs"
 if not os.path.exists(opt_dir):
     os.mkdir(opt_dir)
 print("opt dir: " + opt_dir)
-flog = open(os.path.join(opt_dir, f"hal_pred_{path.split('/')[-2]}.log"), "w", encoding="utf-8")
+flog = open(os.path.join(opt_dir, f"hal_pred_{name}.log"), "w", encoding="utf-8")
 log_path = os.path.join(opt_dir, "gen.log")
 
 # read input in
@@ -96,7 +97,7 @@ bsz = 64
 count = 0
 tot_tokens = 0
 tot_pred_hal_tokens = 0
-tot_ratio = 0
+tot_ratio = []
 
 sent_pred_labels = []
 prediction_token_labels = []
@@ -146,7 +147,7 @@ for i, j in make_batches(len(data), bsz):
         else:
             tot_pred_hal_tokens += sum(np.array(token_prediction_labels) == 1)
             tot_tokens += len(token_prediction_labels)
-            tot_ratio += sum(np.array(token_prediction_labels) == 1)/len(token_prediction_labels)
+            tot_ratio.append(sum(np.array(token_prediction_labels) == 1)/len(token_prediction_labels))
     count += 1
     if count > 0 and count % 100 == 0:
         print("Processed {} batches, bad {}!".format(count, bad_num))
@@ -155,7 +156,7 @@ flog.close()
 
 path = sys.argv[1]
 
-result_dict[int(path.split('/')[-2])] = tot_ratio/len(data) #tot_pred_hal_tokens*1.0/tot_tokens
+result_dict[int(name)] = tot_ratio #tot_pred_hal_tokens*1.0/tot_tokens
 print(result_dict)
 with open('results.pkl', 'wb') as f:
     pickle.dump(result_dict, f)

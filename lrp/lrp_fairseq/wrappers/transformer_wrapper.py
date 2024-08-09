@@ -814,6 +814,7 @@ class FairseqTransformerHub(GeneratorHubInterface):
             #print('self_attn', torch.sum(R), R)
             R = self.relprop_residual(R, R_res, None, self.get_name(i,'self_attn', 'decoder'), self.get_name(i,'self_attn', 'decoder'))
             #print('residual', torch.sum(R), R)
+            torch.cuda.empty_cache()
         # shift left: compensate for right shift
         R_crop = F.pad(input=R, pad=(0, 0, 0, 1, 0, 0), mode='constant', value=0)[:, 1:, :]
         return {'emb_out': R_crop, 'enc_out': R_enc * R_enc_scale / torch.sum(torch.abs(R_enc)),
@@ -842,5 +843,6 @@ class FairseqTransformerHub(GeneratorHubInterface):
             #print('attn', torch.sum(R), R)
             R = self.relprop_residual(R, R_res, None, self.get_name(i,'self_attn', 'encoder'), self.get_name(i,'self_attn', 'encoder'))
             #print('residual', torch.sum(R), R)
+            torch.cuda.empty_cache()
         return R
 

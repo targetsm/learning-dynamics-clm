@@ -31,13 +31,13 @@ except:
     kl_dict_unigram = dict()
     kl_dict_bigram = dict()
 
-tm_pd = pd.read_csv(f'/local/home/ggabriel/ma/models/tl/wmt22frde/evaluation/scores_tm.txt', sep="\t", header=None)
-lm_pd = pd.read_csv(f'/local/home/ggabriel/ma/models/tl/wmt22frde/evaluation/scores_lm.txt', sep="\t", header=None)
+tm_pd = pd.read_csv(f'/local/home/ggabriel/ma/models/tl/wmt22deen_subset/iwslt/evaluation/scores_tm.txt', sep="\t", header=None)
+lm_pd = pd.read_csv(f'/local/home/ggabriel/ma/models/tl/wmt22deen_subset/iwslt/evaluation/scores_lm.txt', sep="\t", header=None)
 kl = 0
 kl_unigram = 0
 kl_bigram = 0
-f_lm = open(f'/local/home/ggabriel/ma/models/tl/wmt22frde/evaluation/lm/probs-test.npy', 'rb')
-f_tm = open(f'/local/home/ggabriel/ma/models/tl/wmt22frde/evaluation/tm/probs-test.npy', 'rb')
+f_lm = open(f'/local/home/ggabriel/ma/models/tl/wmt22deen_subset/iwslt/evaluation/lm/probs-test.npy', 'rb')
+f_tm = open(f'/local/home/ggabriel/ma/models/tl/wmt22deen_subset/iwslt/evaluation/tm/probs-test.npy', 'rb')
 tm_vals = []
 lm_vals = []
 n_samples = lm_pd.shape[0]
@@ -64,7 +64,8 @@ for i in range(n_samples):
     tokens = (tm_pd.loc[i][2]).split(' ')
     length = len(lm_scores)
     for j in range(length):
-        print(lm_scores[j], tm_scores[j])
+        #print(len(lm_scores[j]), len(tm_scores[j]))
+        #print(lm_scores[j], tm_scores[j])
         kl_loc += np.sum(np.multiply(np.exp(lm_scores[j]),(lm_scores[j] - tm_scores[j])))
         kl_loc_unigram += np.sum(np.multiply(unigram_prob,(np.log(unigram_prob) - tm_scores[j])))
         if j == 0:

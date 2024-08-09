@@ -153,6 +153,7 @@ class MultiheadAttention(nn.Module):
         assert list(query.size()) == [tgt_len, bsz, embed_dim]
 
         alti = True
+
         if (
             not alti
             and not self.onnx_trace
@@ -187,6 +188,9 @@ class MultiheadAttention(nn.Module):
                 k_proj_weight=self.k_proj.weight,
                 v_proj_weight=self.v_proj.weight,
             )
+        
+        #print('q', query)
+        #print('attn', key_padding_mask, attn_mask)
 
         if incremental_state is not None:
             saved_state = self._get_input_buffer(incremental_state)
@@ -198,7 +202,6 @@ class MultiheadAttention(nn.Module):
                     key = value = None
         else:
             saved_state = None
-
         if self.self_attention:
             q = self.q_proj(query)
             k = self.k_proj(query)
@@ -212,6 +215,7 @@ class MultiheadAttention(nn.Module):
             else:
                 k = self.k_proj(key)
                 v = self.v_proj(key)
+            #print('q,k,v', q, k, v)
 
         else:
             assert key is not None and value is not None
@@ -219,7 +223,7 @@ class MultiheadAttention(nn.Module):
             k = self.k_proj(key)
             v = self.v_proj(value)
         q *= self.scaling
-
+        #print('q_scaled', q)
         if self.bias_k is not None:
             assert self.bias_v is not None
             k = torch.cat([k, self.bias_k.repeat(1, bsz, 1)])
@@ -324,10 +328,11 @@ class MultiheadAttention(nn.Module):
                     ],
                     dim=1,
                 )
-
+        
         attn_weights = torch.bmm(q, k.transpose(1, 2))
         attn_weights = self.apply_sparse_mask(attn_weights, tgt_len, src_len, bsz)
-
+        #if self.encoder_decoder_attention:
+        #    print('attn_weights', attn_weights, attn_weights.shape)
         assert list(attn_weights.size()) == [bsz * self.num_heads, tgt_len, src_len]
 
         if attn_mask is not None:
@@ -368,6 +373,7 @@ class MultiheadAttention(nn.Module):
             attn = attn.contiguous().view(tgt_len, bsz, embed_dim)
         else:
             attn = attn.transpose(0, 1).contiguous().view(tgt_len, bsz, embed_dim)
+        
         attn = self.out_proj(attn)
         attn_weights: Optional[Tensor] = None
         if need_weights:

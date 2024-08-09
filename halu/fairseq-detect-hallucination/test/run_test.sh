@@ -1,5 +1,5 @@
 
-for f in ../../../models/tm/evaluation_generate/*/*.txt
+for f in ../../../models/tl/iwslt14deen/iwslt/tm/evaluation_generate/*/*.txt
 do
 	echo $f
 	grep "^T" $f | cut -f 2 > target.en
@@ -13,5 +13,6 @@ do
 	sed -i -e 's/ //g' data/pred.en
 	sed -i -e "s/&apos;/\'/" data/pred.en
         sed -i -e 's/▁/ /g' data/pred.en
+	rm target.en pred.en paste.tmp
 	CUDA_VISIBLE_DEVICES="" python predict_hallucination_mt.py $f
 done

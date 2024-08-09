@@ -390,14 +390,8 @@ class TransformerDecoderLayer(nn.Module):
         if self.normalize_before:
             x = self.final_layer_norm(x)
 
-        #print('b fc1', x)
-        x = self.fc1(x)
-        #print('fc1', x)
-        x = self.activation_fn(x)
-        
-        #x = self.activation_fn(self.fc1(x))
+        x = self.activation_fn(self.fc1(x))
         x = self.activation_dropout_module(x)
-        #print('fc2', x)
         x = self.fc2(x)
         x = self.dropout_module(x)
         x = self.residual_connection(x, residual)

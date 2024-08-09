@@ -2,8 +2,8 @@ import os
 import torch
 
 # Select GPU
-torch.cuda.set_device(0)
-torch.cuda.current_device()
+#torch.cuda.set_device(0)
+#torch.cuda.current_device()
 
 import warnings
 from pathlib import Path
@@ -38,7 +38,7 @@ red_color = '#B85450'
 
 alti_dict = dict()
 #directory = "/cluster/scratch/ggabriel/ma/tm/checkpoints/"
-directory = "../../models/tm/checkpoints/analysis"
+directory = "../../models/tl/iwslt14deen/tm/checkpoints"
 #directory = "./small_model/checkpoints/"
 dir_out = './' # set the directory to save the results
 result = {}
@@ -52,30 +52,34 @@ for f in os.listdir(os.fsencode(directory)):
         result = pickle.load(open(dir_out + 'lrp_results.pkl', 'rb'))
     except:
         result = {}   
-    result[filename] = []
+    if filename in result.keys() or 'best' in filename or 'last' in filename or 'analysis' in filename:
+        continue
+    result[filename] = {'inp':[], 'out':[]}
     
     hub = FairseqTransformerHub.from_pretrained(
         checkpoint_dir=directory,
         checkpoint_file=filename,
         #data_name_or_path="../data-bin/iwslt14.sep.tokenized.de-en/",
-        data_name_or_path="../../data-bin/iwslt14.sep.tokenized.de-en/",
+        data_name_or_path="../data-bin/iwslt14.sep.tokenized.de-en/",
 
         )
     #hub.models[0].to('cuda')
     # Get sample from provided test data
     total_source_contribution = 0
     total_target_contribution = 0
-    len_testset_orig = len(open('./sentp_data/test.sentencepiece.de').readlines())
-    len_testset = 2
-    inp_lrp_total = 0
-    out_lrp_total = 0
+    #len_testset_orig = len(open('./sentp_data/test.sentencepiece.de').readlines())
+    len_testset = 10
+    inp_lrp_total = []
+    out_lrp_total = []
+    j = 0
     for i in range(len_testset):
         if data_sample == 'generate':
             # index in dataset
-            #i = 1553
-            
-            sample = hub.get_sample('test', i)
-            
+            while True:
+                sample = hub.get_sample('test', j)
+                j+=1
+                if len(sample['src_tok']) < 6:
+                    break
             src_tensor = sample['src_tensor']
             tgt_tensor = sample['tgt_tensor']
             src_tensor.to(device)
@@ -84,7 +88,7 @@ for f in os.listdir(os.fsencode(directory)):
             tgt_tok = sample['tgt_tok']
             source_sentence = sample['src_tok']
             target_sentence = sample['tgt_tok']
-            print(source_sentence)
+            #print(source_sentence)
         if data_sample == 'interactive':
             # index in dataset
             # i = 27 # index in dataset
@@ -107,7 +111,7 @@ for f in os.listdir(os.fsencode(directory)):
             pred_log_probs, pred_tensor = torch.max(log_probs, dim=-1)
             predicted_sentence = hub.decode(pred_tensor, hub.task.tgt_dict)
             pred_sent = hub.decode(pred_tensor, hub.task.tgt_dict, as_string=True)
-            print(f"Predicted sentence: \t {predicted_sentence}")
+            #print(f"Predicted sentence: \t {predicted_sentence}")
         #print(source_sentence)
         R_ = torch.zeros(log_probs.shape).to(device)
         inp_lrp = []
@@ -124,14 +128,14 @@ for f in os.listdir(os.fsencode(directory)):
             inp_lrp.append(R_inp[0])
             out_lrp.append(R_out_uncrop[0])        
             torch.cuda.empty_cache()
-        inp_lrp_total += torch.mean(torch.sum(torch.stack(inp_lrp), -1)).cpu()
-        out_lrp_total += torch.mean(torch.sum(torch.stack(out_lrp), -1)).cpu()
-            #print(source_sentence, target_sentence, predicted_sentence)
+        result[filename]['inp'].append(torch.mean(torch.sum(torch.stack(inp_lrp), -1)).cpu())
+        result[filename]['out'].append(torch.mean(torch.sum(torch.stack(out_lrp), -1)).cpu())
+        #print(source_sentence, target_sentence, predicted_sentence)
             #print(R_inp[0], torch.sum(R_inp), R_out_uncrop[0], torch.sum(R_out_uncrop))
             #exit()
         #result[filename].append({'src': source_sentence, 'dst': target_sentence, 'prd': predicted_sentence,
         #           'inp_lrp': torch.stack(inp_lrp).cpu().numpy(), 'out_lrp': torch.stack(out_lrp).cpu().numpy()})
         #result[filename].append('inp_lrp': numpy.sum(torch.stack(inp_lrp).cpu().numpy()
-    result[filename] = {'inp': inp_lrp_total/len_testset, 'out': out_lrp_total/len_testset}
-        #print(result[filename], 'inp', torch.sum(torch.stack(inp_lrp), -1).cpu(), 'out',  torch.sum(torch.stack(out_lrp), -1).cpu(), torch.mean(torch.sum(torch.stack(inp_lrp), -1)).cpu(), torch.mean(torch.sum(torch.stack(out_lrp), -1)).cpu())
+    #result[filename] = {'inp': , 'out': out_lrp_total/len_testset}
+        print(result[filename], 'inp', torch.sum(torch.stack(inp_lrp), -1).cpu(), 'out',  torch.sum(torch.stack(out_lrp), -1).cpu(), torch.mean(torch.sum(torch.stack(inp_lrp), -1)).cpu(), torch.mean(torch.sum(torch.stack(out_lrp), -1)).cpu())
     pickle.dump(result, open(dir_out + 'lrp_results.pkl', 'wb'))

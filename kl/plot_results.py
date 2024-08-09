@@ -1,14 +1,16 @@
 import matplotlib.pylab as plt
 import pickle
 import numpy
+import sys
 
-with open('data/kl_dict.pkl', 'rb') as f:
+dr = sys.argv[1]
+with open(f'data/tl/{dr}/test_kl_dict.pkl', 'rb') as f:
     kl_dict_lm = pickle.load(f)
     list_lm = sorted([(k, v[0], v[1]) for k,v in kl_dict_lm.items()])
-with open('data/kl_dict_unigram.pkl', 'rb') as f:
+with open(f'data/tl/{dr}/test_kl_dict_unigram.pkl', 'rb') as f:
     kl_dict_unigram = pickle.load(f)
     list_unigram = sorted([(k, v[0], v[1]) for k,v in kl_dict_unigram.items()])
-with open('data/kl_dict_bigram.pkl', 'rb') as f:
+with open(f'data/tl/{dr}/test_kl_dict_bigram.pkl', 'rb') as f:
     kl_dict_bigram = pickle.load(f)
     list_bigram = sorted([(k, v[0], v[1]) for k,v in kl_dict_bigram.items()])
 
@@ -21,28 +23,29 @@ ax1.grid(True)
 plt.title("Test set KL divergence of TM & LM after the same amount \n of training steps")
 ax1.set_xlabel("# steps")
 ax1.set_ylabel("kl-divergence")
-plt.savefig('plot/kl.pdf')
+plt.savefig(f'plot/{dr}/kl.pdf')
 plt.xscale('log')
 plt.title("Test set KL divergence of TM & LM after the same amount \n of training steps (lin-log)")
 ticks = 10**numpy.arange(2,6)
 plt.xticks(ticks, ticks)
-plt.savefig('plot/kl_log.pdf')
+plt.savefig(f'plot/{dr}/kl_log.pdf')
 
 
-with open('old_results/new_results/kl_dict.pkl', 'rb') as f:
-    kl_dict_lm_old = pickle.load(f)
-    list_lm_old = sorted([(k, v) for k,v in kl_dict_lm_old.items()])
-with open('old_results/new_results/kl_dict_unigram.pkl', 'rb') as f:
-    kl_dict_unigram_old = pickle.load(f)
-    list_unigram_old = sorted([(k, v) for k,v in kl_dict_unigram_old.items()])
-with open('old_results/new_results/kl_dict_bigram.pkl', 'rb') as f:
-    kl_dict_bigram_old = pickle.load(f)
-    list_bigram_old = sorted([(k, v) for k,v in kl_dict_bigram_old.items()])
-ax1.plot(*zip(*list_lm_old), linestyle='-', marker='.', label='lm_old')
-ax1.plot(*zip(*list_unigram_old), linestyle='-', marker='.', label='unigram_old')
-ax1.plot(*zip(*list_bigram_old), linestyle='-', marker='.', label='bigram_old')
-ax1.legend()
-plt.savefig('plot/kl_comp_log.pdf')
+
+#with open('old_results/new_results/kl_dict.pkl', 'rb') as f:
+#    kl_dict_lm_old = pickle.load(f)
+#    list_lm_old = sorted([(k, v) for k,v in kl_dict_lm_old.items()])
+#with open('old_results/new_results/kl_dict_unigram.pkl', 'rb') as f:
+#    kl_dict_unigram_old = pickle.load(f)
+#    list_unigram_old = sorted([(k, v) for k,v in kl_dict_unigram_old.items()])
+#with open('old_results/new_results/kl_dict_bigram.pkl', 'rb') as f:
+#    kl_dict_bigram_old = pickle.load(f)
+#    list_bigram_old = sorted([(k, v) for k,v in kl_dict_bigram_old.items()])
+#ax1.plot(*zip(*list_lm_old), linestyle='-', marker='.', label='lm_old')
+#ax1.plot(*zip(*list_unigram_old), linestyle='-', marker='.', label='unigram_old')
+#ax1.plot(*zip(*list_bigram_old), linestyle='-', marker='.', label='bigram_old')
+#ax1.legend()
+#plt.savefig('plot/kl_comp_log.pdf')
 
 #with open('../alti/transformer-contributions-nmt-v2/alti_results.pkl', 'rb') as f:
 #    alti_dict = pickle.load(f)

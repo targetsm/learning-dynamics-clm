@@ -1,24 +1,24 @@
 #!/bin/bash
 ulimit -m 20000000
+set -e
 source $HOME/ma/alti/venv_alti/bin/activate
-workdir=/local/home/ggabriel/ma/models/tl/wmt22frde
+workdir=/local/home/ggabriel/ma/models/tl/wmt22deen_subset/iwslt
 cd $workdir/tm/checkpoints
 
 #if [ ! -d analysis ]; then
-#   mkdir -p analysis
-#   cp checkpoint_*_*.pt analysis
-#   cd analysis
-#   for filename in ./*; do echo $filename; mv $filename ${filename##*_}; echo ${filename##*_}; done
+#mkdir -p analysis
+#cp checkpoint_*_*.pt analysis
+#cd analysis
+#for filename in ./*; do echo $filename; mv $filename ${filename##*_}; echo ${filename##*_}; done
 #fi
-
 #cd $workdir/lm/checkpoints
 #if [ ! -d analysis ]; then
-#   mkdir -p analysis
-#   cp checkpoint_*_*.pt analysis
-#   cd analysis
-#   for filename in ./*; do mv $filename ${filename##*_}; done
+#mkdir -p analysis
+#cp checkpoint_*_*.pt analysis
+#cd analysis
+#for filename in ./*; do mv $filename ${filename##*_}; done
 #fi
-
+#
 cd $workdir
 mkdir -p evaluation
 
@@ -26,12 +26,12 @@ for filename in $workdir/tm/checkpoints/analysis/*; do
     f=$(basename $filename .pt)
     echo $filename
     echo $f
-    CUDA_VISIBLE_DEVICES='' fairseq-generate tm/data-bin/wmt22.sep.tokenized.fr-de \
+    CUDA_VISIBLE_DEVICES='' fairseq-generate tm/data-bin/wmt22.sep.tokenized.de-en \
         --path tm/checkpoints/analysis/$f.pt \
         --batch-size 256 --beam 1\
 	--results-path evaluation/tm \
         --score-reference
-    CUDA_VISIBLE_DEVICES='' fairseq-generate lm/data-bin/wmt22.sep.tokenized.fr-de \
+    CUDA_VISIBLE_DEVICES='' fairseq-generate lm/data-bin/wmt22.sep.tokenized.de-en \
         --path lm/checkpoints/analysis/$f.pt \
         --batch-size 256 --beam 1 \
 	--results-path evaluation/lm \

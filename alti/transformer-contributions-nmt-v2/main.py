@@ -33,33 +33,34 @@ teacher_forcing = True # teacher forcing/free decoding
 green_color = '#82B366'
 red_color = '#B85450'
 
-# TODO: Code for itarting through the checkpoitns here
-#       Also add lists for results storing
 
 import pickle
 try:
-    with open('alti_results_wmtxwmt.pkl', 'rb') as f:
+    with open('alti_results_iwsltxiwslt.pkl', 'rb') as f:
         alti_dict = pickle.load(f)
 except:
     alti_dict = dict()
-directory = "/local/home/ggabriel/ma/models/tl/wmt22frde/wmt/tm/checkpoints/"
+directory = "/local/home/ggabriel/ma/models/tl/iwslt14deen/tm/checkpoints/"
 for f in os.listdir(os.fsencode(directory)):
     filename = os.fsdecode(f)
     print(filename)
-    if 'best' in filename or 'last' in filename or int(filename.split('_')[-1][:-3]) in alti_dict:
+    if 'best' in filename or 'last' in filename or 'analysis' in filename or int(filename.split('_')[-1][:-3]) in alti_dict:
         continue
     
     hub = FairseqTransformerHub.from_pretrained(
         checkpoint_dir=directory,
         checkpoint_file=filename,
-        data_name_or_path="../data-bin/wmt22.sep.tokenized.fr-de/",
+        data_name_or_path="../data-bin/iwslt14.sep.tokenized.de-en/",
         )
     
     # Get sample from provided test data
     total_source_contribution = 0
     total_target_contribution = 0
+    step_number = int(filename.split('_')[-1][:-3])
+    alti_dict[step_number]={'src':[], 'trg':[]}
     #len_testset_orig = len(open('./sentp_data/test.sentencepiece.de').readlines())
-    len_testset = 1000
+    len_testset = min(1000,  len(open("../../data/tl/iwslt14deen/sentp/iwslt14.sep.tokenized.de-en/test.en").readlines()))
+    print(len_testset)
     for i in range(len_testset):
         if data_sample == 'generate':
             # index in dataset
@@ -115,14 +116,14 @@ for f in os.listdir(os.fsencode(directory)):
                 #score = pred['score'].item()
                 #print(f"{score} \t {pred_sent}")
         
-            hypo = 0 # first hypothesis
+            hy8po = 0 # first hypothesis
             tgt_tensor = tgt_tensor_free[hypo]
             
             # We add eos token at the beginning of sentence and delete it from the end
             tgt_tensor = torch.cat([torch.tensor([hub.task.target_dictionary.eos_index]).to(tgt_tensor.device),
                             tgt_tensor[:-1]
                         ]).to(tgt_tensor.device)
-            #target_sentence = hub.decode(tgt_tensor, hub.task.target_dictionary, as_string=False)
+            #8target_sentence = hub.decode(tgt_tensor, hub.task.target_dictionary, as_string=False)
         
             # Forward-pass to get the 'prediction' (predicted_sentence) when the top-hypothesis is in the decoder input
             model_output, log_probs, encoder_out, layer_inputs, layer_outputs = hub.trace_forward(src_tensor, tgt_tensor)
@@ -142,28 +143,26 @@ for f in os.listdir(os.fsencode(directory)):
         #print(alti_result[:, :len(source_sentence_)].sum(-1), alti_result[:, :len(source_sentence_)].sum(-1).sum()/len(predicted_sentence))
         #print(alti_result[:, len(source_sentence_):].sum(-1), alti_result[:, len(source_sentence_):].sum(-1).sum()/len(predicted_sentence))
         layer = -1
-        #print(tota
         contributions_rollout_layer = total_alti[layer]
         alti_result = contributions_rollout_layer.detach().cpu().numpy()
-        total_source_contribution+=alti_result[:, :len(source_sentence)].sum(-1).sum()/len(predicted_sentence)
-        total_target_contribution+=alti_result[:, len(source_sentence):].sum(-1).sum()/len(predicted_sentence)
-    
+        alti_dict[step_number]['src'].append(alti_result[:, :len(source_sentence)].sum(-1).sum()/len(predicted_sentence))
+        alti_dict[step_number]['trg'].append(alti_result[:, len(source_sentence):].sum(-1).sum()/len(predicted_sentence))
+        if i % 10 == 0:
+            torch.cuda.empty_cache()
         #print(total_source_contribution/(i+1))
         #print(total_target_contribution/(i+1))
-        
-    total_source_contribution /= len_testset
-    total_target_contribution /= len_testset
+    #total_source_contribution /= len_testset
+    #total_target_contribution /= len_testset
     
-    print('source_contribution: ', total_source_contribution)
-    print('target_contribution: ', total_target_contribution)
+    #print(alti_dict)
+    print('source_contribution: ', np.mean(alti_dict[step_number]['src']), np.std(alti_dict[step_number]['src']))
+    print('target_contribution: ', np.mean(alti_dict[step_number]['trg']), np.std(alti_dict[step_number]['trg']))
     step_number = int(filename.split('_')[-1][:-3])
-    alti_dict[step_number] = (total_source_contribution, total_target_contribution)
-    print(alti_dict)
-    with open('alti_results_wmtxwmt.pkl', 'wb') as f:
+    #alti_dict[step_n] = (total_source_contribution, total_target_contribution)
+    with open('alti_results_iwsltxiwslt.pkl', 'wb') as f:
         pickle.dump(alti_dict, f)
-
 # TODO: Add output logic here, save lists in a file
 import pickle 
 
-with open('alti_results_wmtxwmt.pkl', 'wb') as f:
+with open('alti_results_iwsltxiwslt.pkl', 'wb') as f:
     pickle.dump(alti_dict, f)
