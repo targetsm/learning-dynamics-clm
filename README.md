@@ -1,13 +1,22 @@
 # Investigating the Learning Dynamics of Conditional Language Models
 
-This is the project repository of my Master's Thesis on: Investigating the Learning Dynamics of Conditional Language Models 
-- paper verlinken
-- Hier geben wir grobe anweisungen, wo die verschiedenen skripte sind etc.
+This is the project repository of my Master's Thesis on: [Investigating the Learning Dynamics of Conditional Language Models](https://www.research-collection.ethz.ch/handle/20.500.11850/697969) 
+
+## Data
+We use different datasets:
+- iwslt14deen
+- wmt22deen
+- wmt22frde
+
+TODO Data perparation
 
 ## Model training
-- beschreiben was für modelle wir trainieren / was für modelle dort sind.
-- Daten beschreiben / Datasets
-- beschreiben, was für framework, wenn ich etwsas als vorlage benutze oder so?
+We train different translation models using fairseq on several datasets.
+
+TODO:
+- describe what models we train / what models are there.
+- Describe data / datasets
+- framework we use
   
 The scripts for model training can be found in the [/scripts](scripts/) folder.
 Training scripts for specific model configurations are found in [/models/tl](models/tl).
@@ -17,29 +26,31 @@ Scripts for data preprocessing can be found in [/data/tl](/data/tl).
 ### Model translations
 
 Translations have been generated using [/compt/bleu/generate_test.sh](/compt/bleu/generate_test.sh).
-- vlt. etwas details zu generation?
+TODO: Details about generation?
 
 ### KL divergence
 
 To compute the KL divergence first install Fairseq provided in [/alti/fairseq](/alti/fairseq).
 KL divergence can be computed using [/kl/test_on_time.sh](/kl/test_on_time.sh). 
-Hier mehr details, modelle so wie zuvor benutzen, fairseq muss eh schon drauf sein. 
-Klar machen, dass wir die gleichen modelle einfach benutzen können mit diesem skript
+TODO:
+- Here more details, use models as before, remove fairseq here
+- Make it clear that we can just use the same models with this script
 
 ### ALTI+
 
 Scirpts for alti+ computation are provided in [alti/transformer-contribuions-nmt-v2](alti/transformer-contribuions-nmt-v2).
 Run [main.py](alti/transformer-contribuions-nmt-v2/main.py) to comptue the alti contirbuions over the course of training.
-vlt. mehr details aber generell ok: Wir generieren ALTI+ scores mit dem skript, 
-evtl. die änderungen von alti+ auch vorschlagen?
+TODO:
+- Maybe more details but generally ok: We generate ALTI+ scores with the script,
+- Possibly also suggest the changes of alti+?
 
 ### LRP
 
 Our implementation of LRP in Fairseq can be found in [/lrp/lrp_fairseq](/lrp/lrp_fairseq).
-Hier viel mehr detais:
-- Wir haben lrp struktur übernommen von ...
-- Code wurde grösstenteils übernommen und in pytorch umgesetzt
-- Skritp zum generieren der contributions findet man in ...
+Here much more detais:
+- We have taken over lrp structure from ...
+- Code was mostly taken over and converted into pytorch
+- Skritp to generate the contributions can be found in ...
   
 ### Hallucination metrics
 
@@ -53,6 +64,5 @@ actually probably enough. maybe details on installing labse.
 For the model-based token hallucination metric, clone and install the repository from the [project repository](https://github.com/violet-zct/fairseq-detect-hallucination).
 Download the pretrained XSum model provided.
 We used [/halu/fairseq-detect-hallucination/test/run_test.sh](/halu/fairseq-detect-hallucination/test/run_test.sh) for the computation of the token hallucination ratio.
-- etwas ausführen aber generell ok...
 
 
