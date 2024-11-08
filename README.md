@@ -1,8 +1,15 @@
 # Investigating the Learning Dynamics of Conditional Language Models
 
-This is the project repository of my Master's Thesis on: [Investigating the Learning Dynamics of Conditional Language Models](https://www.research-collection.ethz.ch/handle/20.500.11850/697969) 
+This is the project repository of the Master's Thesis on: [Investigating the Learning Dynamics of Conditional Language Models](https://www.research-collection.ethz.ch/handle/20.500.11850/697969) 
 
-## Data
+## Model setup
+
+The experiments rely on PyTorch and the [Fairseq](https://github.com/facebookresearch/fairseq) framework.
+A altered version of Fairseq is provided under [/alti/fairseq](/alti/fairseq), with necessary adaptations for our experiments.
+
+[comment]: # (Specify what libraries exactly are necessary? all of them)
+
+### Data
 In our experiments we use different translation datasets. 
 The datasets can be donwloaded from the respective Websites. 
 We use the following datasets:
@@ -21,39 +28,34 @@ Training scripts for specific model configurations are found in [/models/tl](mod
 
 ### Model translations
 
-Translations have been generated using [/compt/bleu/generate_test.sh](/compt/bleu/generate_test.sh).
-TODO: Details about generation?
+We generate translations using the script provided in [/compt/bleu/generate_test.sh](/compt/bleu/generate_test.sh).
+
+## Experiments
 
 ### KL divergence
 
-To compute the KL divergence first install Fairseq provided in [/alti/fairseq](/alti/fairseq).
-KL divergence can be computed using [/kl/test_on_time.sh](/kl/test_on_time.sh). 
-TODO:
-- Here more details, use models as before, remove fairseq here
-- Make it clear that we can just use the same models with this script
+To compute the KL divergence between translation and language models first install Fairseq provided in [/alti/fairseq](/alti/fairseq).
+We compute the KL divergence using [/kl/test_on_time.sh](/kl/test_on_time.sh).
 
 ### ALTI+
 
-Scirpts for alti+ computation are provided in [alti/transformer-contribuions-nmt-v2](alti/transformer-contribuions-nmt-v2).
-Run [main.py](alti/transformer-contribuions-nmt-v2/main.py) to comptue the alti contirbuions over the course of training.
-TODO:
-- Maybe more details but generally ok: We generate ALTI+ scores with the script,
-- Possibly also suggest the changes of alti+?
+We compute source and target prefix contributions using [ALTI+](https://github.com/mt-upc/transformer-contributions-nmt).
+Scirpts for ALTI+ computation are provided in [alti/transformer-contribuions-nmt-v2](alti/transformer-contribuions-nmt-v2).
+Run [main.py](alti/transformer-contribuions-nmt-v2/main.py) to comptue the evolution ALTI+ contribuitons over the course of training.
 
 ### LRP
 
+We adapt a [source attribution method](https://github.com/lena-voita/the-story-of-heads) based on layerwise relevance propagation for Fairseq/PyTorch to compute source and target prefix contributions.
 Our implementation of LRP in Fairseq can be found in [/lrp/lrp_fairseq](/lrp/lrp_fairseq).
-Here much more detais:
-- We have taken over lrp structure from ...
-- Code was mostly taken over and converted into pytorch
-- Skritp to generate the contributions can be found in ...
-  
+Run [/lrp/lrp_fairseq/main.py](/lrp/lrp_fairseq/main.py) to compute the evolution of LRP contributions over the course.
+
+[comment]: # (link plotting scripts)
+
 ### Hallucination metrics
 
 #### LaBSE
 
-The python script we used to compute LaBSE cosine similairty can be found at [/comp/hallucinations/labse/labse.py](/comp/hallucinations/labse/labse.py).
-actually probably enough. maybe details on installing labse.
+The python script we used to compute [LaBSE](https://huggingface.co/sentence-transformers/LaBSE) cosine similairty can be found at [/comp/hallucinations/labse/labse.py](/comp/hallucinations/labse/labse.py).
 
 #### Token hallucination metric
 
