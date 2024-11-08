@@ -3,25 +3,21 @@
 This is the project repository of my Master's Thesis on: [Investigating the Learning Dynamics of Conditional Language Models](https://www.research-collection.ethz.ch/handle/20.500.11850/697969) 
 
 ## Data
-We use different datasets:
-- iwslt14deen
-- wmt22deen
-- wmt22frde
+In our experiments we use different translation datasets. 
+The datasets can be donwloaded from the respective Websites. 
+We use the following datasets:
+- IWSLT14 German to English MT Track (iwslt14deen) available at [Link](https://wit3.fbk.eu/2014-01)
+- WMT22 French to German (wmt22deen) and WMT22 German to English (wmt22deen) both available at [Link](https://www.statmt.org/wmt22/translation-task.html)
 
-TODO Data perparation
+We preprocess the data using scripts found in [/data/tl](/data/tl).
 
-## Model training
-We train different translation models using fairseq on several datasets.
+[comment]: # (Maybe add data subset generation?)
 
-TODO:
-- describe what models we train / what models are there.
-- Describe data / datasets
-- framework we use
-  
-The scripts for model training can be found in the [/scripts](scripts/) folder.
+### Model training
+
+We train different translation models using the [Fairseq](https://github.com/facebookresearch/fairseq) framework.
+The scripts for data preparation and model training can be found in the [/scripts](scripts/) folder.
 Training scripts for specific model configurations are found in [/models/tl](models/tl).
-
-Scripts for data preprocessing can be found in [/data/tl](/data/tl).
 
 ### Model translations
 
