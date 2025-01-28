@@ -1,6 +1,6 @@
 # Investigating the Learning Dynamics of Conditional Language Models
 
-This is the project repository for my Master's Thesis: [Investigating the Learning Dynamics of Conditional Language Models](https://www.research-collection.ethz.ch/handle/20.500.11850/697969)
+Project repository for my Master's Thesis [Link](https://www.research-collection.ethz.ch/handle/20.500.11850/697969).
 
 ## Model Setup
 
