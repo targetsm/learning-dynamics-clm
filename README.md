@@ -29,13 +29,24 @@ We preprocess the data using scripts found in [/data/tl](/data/tl). TODO: add mo
 
 ### Model Training
 
-We train various models using the [Fairseq](https://github.com/facebookresearch/fairseq) framework. Scripts for data preparation and model training are in the [/scripts](/scripts) folder. Training scripts for specific model configurations are in [/models/tl](/models/tl).
-TODO: actually add the commands for model training
+We train various models using the [Fairseq](https://github.com/facebookresearch/fairseq) framework. Scripts for data preparation and model training can be found in the [/scripts](/scripts) folder. Training scripts for specific model configurations are in [/models/tl](/models/tl).
+
+To train a model, modify the specific training file to match desired data, model and hyperparameters. Then run:
+```
+bash train_staged_tm.sh
+```
+Checkpoints are found in checkpoints. checkpoints are stored according to schedule in training file.
 
 ### Model Translations
 
-We generate translations using the script in [/compt/bleu/generate_test.sh](/compt/bleu/generate_test.sh).
-Add command for generation
+We generate translations using the script in [/comp/bleu/generate_test.sh](/compt/bleu/generate_test.sh).
+Similarly adapt the file to desired model and data and run:
+
+```
+bash generate_test.sh
+```
+
+Output stored in folder evaluation_generate in subfolder of model.
 
 ## Experiments
 
