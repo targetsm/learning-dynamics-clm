@@ -4,7 +4,12 @@ Project repository for my Master's Thesis [Link](https://www.research-collection
 
 ## Model Setup
 
-Our experiments rely on PyTorch and the [Fairseq](https://github.com/facebookresearch/fairseq) framework. We provide an adapted version of Fairseq under [/alti/fairseq](/alti/fairseq).
+Our experiments rely on PyTorch and the [Fairseq](https://github.com/facebookresearch/fairseq) framework. 
+My Setup:
+- PyTorch v1.4.0
+- CUDA 10.0.130
+- CUDNN 7.5
+We provide an adapted version of Fairseq under [/alti/fairseq](/alti/fairseq).
 
 ### Data
 
