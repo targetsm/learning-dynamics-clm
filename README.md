@@ -72,6 +72,20 @@ To compute the KL divergences for a specific translation model adapt [kl/test_on
 bash test_on_time.sh
 ```
 
+Results are stored in test_kl_dict.pkl, test_kl_dict_unigram.pkl and test_kl_dict_bigram.pkl.
+Place the files into the corresponding folder in kl/data/tl/
+Plots can be generated running 
+```
+python plot_all.py
+```
+plots for individual models can be generated using:
+
+```
+python plot_restults.py iwlst14deen/iwslt
+```
+
+The results are stored in the kl/plot folder.
+
 ### ALTI+
 
 We compute source and target prefix contributions using [ALTI+](https://github.com/mt-upc/transformer-contributions-nmt). Scripts for ALTI+ computation are in [alti/transformer-contribuions-nmt-v2](/alti/transformer-contribuions-nmt-v2). Run [main.py](/alti/transformer-contribuions-nmt-v2/main.py) to compute the evolution of ALTI+ contributions over the course of training.
