@@ -55,7 +55,7 @@ bash generate_test.sh
 
 Output stored in folder evaluation_generate in subfolder of model.
 
-## Experiments
+## Metrics
 
 ### KL Divergence
 
@@ -117,13 +117,18 @@ Further plotting can be run using:
 python plot_alti.py
 ```
 
-### Hallucination Metrics
+## Hallucination Metrics
 
 ### LaBSE
 
 Install [LaBSE](https://huggingface.co/sentence-transformers/LaBSE) as described. The Python script we used to compute LaBSE cosine similarity is at [/comp/hallucinations/labse/labse.py](/comp/hallucinations/labse/labse.py).
 
-TODO: add commands
+To generate laBSE results run:
+```
+pip install sentence_transformers
+python labse.py iwslt14deen/iwslt
+```
+Use plot.py to generate resutls for a specific model and plot_all.py to generate plots for multiple models.
 
 ### Token Hallucination Metric
 
