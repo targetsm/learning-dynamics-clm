@@ -61,12 +61,12 @@ To compute the KL divergence between translation and language models.
 We train a language model and a translation model on the same data as described above. 
 We compute the kl divergence between tranlsation models and unigram and bigram distributions of the training data as well as translation models and language models Fitted to the same datasets.
 
-To compute the unigram and bigram distributions of the training data adapt kl/prepare_data.sh to fit the dataset and setup and run:
+To compute the unigram and bigram distributions of the training data adapt [kl/data/distribution.py](/kl/data/distribution.py) to fit the dataset and setup and run:
 ```
-bash prepare_data.sh
+python distribution.py
 ```
 
-To then compute the KL divergence for a specific translation model and langauge model pair adapt [kl/test_on_time.sh](/kl/test_on_time.sh) to the corresponding paths, data and models and run:
+To compute the KL divergences for a specific translation model adapt [kl/test_on_time.sh](/kl/test_on_time.sh) and [kl/kl_on_time_efficient.py](kl/kl_on_time_efficient.py) to the corresponding paths, data and models and run:
 
 ```
 bash test_on_time.sh
