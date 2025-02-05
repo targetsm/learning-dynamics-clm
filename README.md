@@ -104,9 +104,18 @@ The plots in the thesis can be generated using /alti/transformer-contribuions-nm
 
 ### LRP
 
-We adapt a [source attribution method](https://github.com/lena-voita/the-story-of-heads) based on layer-wise relevance propagation for Fairseq/PyTorch to compute source and target prefix contributions. Our implementation of LRP in Fairseq is in [/lrp/lrp_fairseq](/lrp/lrp_fairseq). Run [/lrp/lrp_fairseq/main.py](/lrp/lrp_fairseq/main.py) to compute the evolution of LRP contributions over the course of training.
-
-TODO: add commands for execution
+We adapt a [source attribution method](https://github.com/lena-voita/the-story-of-heads) based on layer-wise relevance propagation for Fairseq/PyTorch to compute source and target prefix contributions. Our implementation of LRP in Fairseq is in [/lrp/lrp_fairseq](/lrp/lrp_fairseq). Adapt and run [/lrp/lrp_fairseq/main.py](/lrp/lrp_fairseq/main.py) to compute the evolution of LRP contributions over the course of training.
+```
+python main.py
+```
+To plot results run:
+```
+python plot.py plt/iwslt14deen/iwslt
+```
+Further plotting can be run using:
+```
+python plot_alti.py
+```
 
 ### Hallucination Metrics
 
