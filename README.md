@@ -5,8 +5,9 @@ Project repository for my Master's Thesis. The thesis can be accessed [here](htt
 ## Model Setup
 
 Our experiments rely on PyTorch and the [Fairseq](https://github.com/facebookresearch/fairseq) framework. 
-My Setup:
-- PyTorch v1.4.0
+Setup under which the results can be recreated:
+- PyTorch v1.9.0
+- Torchvision 0.10.0
 - CUDA 10.0.130
 - CUDNN 7.5
 
