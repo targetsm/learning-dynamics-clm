@@ -90,9 +90,17 @@ The results are stored in the kl/plot folder.
 
 ### ALTI+
 
-We compute source and target prefix contributions using [ALTI+](https://github.com/mt-upc/transformer-contributions-nmt). Scripts for ALTI+ computation are in [alti/transformer-contribuions-nmt-v2](/alti/transformer-contribuions-nmt-v2). Run [main.py](/alti/transformer-contribuions-nmt-v2/main.py) to compute the evolution of ALTI+ contributions over the course of training.
+We compute source and target prefix contributions using [ALTI+](https://github.com/mt-upc/transformer-contributions-nmt). Scripts for ALTI+ computation are in [alti/transformer-contribuions-nmt-v2](/alti/transformer-contribuions-nmt-v2). Adapt and run [main.py](/alti/transformer-contribuions-nmt-v2/main.py) to compute the evolution of ALTI+ contributions over the course of training.
 
-TODO: add commands
+```
+python main.py
+```
+
+Results can be plottet using 
+``` python plot.py tl/iwslt14deen/iwslt ```
+for a single model.
+
+The plots in the thesis can be generated using /alti/transformer-contribuions-nmt-v2/plot_labse.py
 
 ### LRP
 
