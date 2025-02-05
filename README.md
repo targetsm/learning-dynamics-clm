@@ -29,6 +29,8 @@ We preprocess the data using scripts found in [/data/tl](/data/tl). TODO: add mo
 
 ### Model Training
 
+TODO: Describe different models used: iwslt, wmt, wmt_big
+
 We train various models using the [Fairseq](https://github.com/facebookresearch/fairseq) framework. Scripts for data preparation and model training can be found in the [/scripts](/scripts) folder. Training scripts for specific model configurations are in [/models/tl](/models/tl).
 
 To train a translation model, modify the specific training file to match desired data, model and hyperparameters. Then run:
