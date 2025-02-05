@@ -1,6 +1,6 @@
 # Investigating the Learning Dynamics of Conditional Language Models
 
-Project repository for my Master's Thesis [Link](https://www.research-collection.ethz.ch/handle/20.500.11850/697969).
+Project repository for my Master's Thesis. The thesis can be accessed [here](https://www.research-collection.ethz.ch/handle/20.500.11850/697969).
 
 ## Model Setup
 
@@ -59,7 +59,14 @@ Output stored in folder evaluation_generate in subfolder of model.
 
 To compute the KL divergence between translation and language models.
 We train a language model and a translation model on the same data as described above. 
-KL divergence between the two models on the common test data can be computed by adapting the [kl/test_on_time.sh](/kl/test_on_time.sh) to the corresponding paths, data and mdoels and running:
+We compute the kl divergence between tranlsation models and unigram and bigram distributions of the training data as well as translation models and language models Fitted to the same datasets.
+
+To compute the unigram and bigram distributions of the training data adapt kl/prepare_data.sh to fit the dataset and setup and run:
+```
+bash prepare_data.sh
+```
+
+To then compute the KL divergence for a specific translation model and langauge model pair adapt [kl/test_on_time.sh](/kl/test_on_time.sh) to the corresponding paths, data and models and run:
 
 ```
 bash test_on_time.sh
