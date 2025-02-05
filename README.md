@@ -31,16 +31,21 @@ We preprocess the data using scripts found in [/data/tl](/data/tl). TODO: add mo
 
 We train various models using the [Fairseq](https://github.com/facebookresearch/fairseq) framework. Scripts for data preparation and model training can be found in the [/scripts](/scripts) folder. Training scripts for specific model configurations are in [/models/tl](/models/tl).
 
-To train a model, modify the specific training file to match desired data, model and hyperparameters. Then run:
+To train a translation model, modify the specific training file to match desired data, model and hyperparameters. Then run:
 ```
 bash train_staged_tm.sh
 ```
 Checkpoints are found in checkpoints. checkpoints are stored according to schedule in training file.
 
+Similarly langauge models can be trained by adapting and running:
+```
+bash train_staged_lm_trunc.sh
+```
+
 ### Model Translations
 
 We generate translations using the script in [/comp/bleu/generate_test.sh](/compt/bleu/generate_test.sh).
-Similarly adapt the file to desired model and data and run:
+Adapt the file to desired model and data and run:
 
 ```
 bash generate_test.sh
@@ -52,9 +57,13 @@ Output stored in folder evaluation_generate in subfolder of model.
 
 ### KL Divergence
 
-To compute the KL divergence between translation and language models, first install Fairseq provided in [/alti/fairseq](/alti/fairseq). We compute the KL divergence using [/kl/test_on_time.sh](/kl/test_on_time.sh).
+To compute the KL divergence between translation and language models.
+We train a language model and a translation model on the same data as described above. 
+KL divergence between the two models on the common test data can be computed by adapting the [kl/test_on_time.sh](/kl/test_on_time.sh) to the corresponding paths, data and mdoels and running:
 
-TODO: add commands
+```
+bash test_on_time.sh
+```
 
 ### ALTI+
 
