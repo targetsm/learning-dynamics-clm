@@ -1,18 +1,24 @@
 # Investigating the Learning Dynamics of Conditional Language Models
 
-Project repository for my Master's Thesis. The thesis can be accessed [here](https://www.research-collection.ethz.ch/handle/20.500.11850/697969).
+Project repository for my Master's Thesis. The thesis can be accessed at: [https://www.research-collection.ethz.ch/handle/20.500.11850/697969](https://www.research-collection.ethz.ch/handle/20.500.11850/697969).
 
 ## Model Setup
 
 Our experiments rely on PyTorch and the [Fairseq](https://github.com/facebookresearch/fairseq) framework. 
-Setup under which the results can be recreated:
-- PyTorch v1.9.0
+
+Setup under which the results can be recreated on cpu:
+- Python 3.8.20
+- PyTorch 1.9.0
 - Torchvision 0.10.0
+  
+Original experiments were run on gpu using:
+- PyTorch 1.2.0
+- Torchvision 0.4.0 
 - CUDA 10.0.130
 - CUDNN 7.5
 
 We provide an adapted version of Fairseq under [/alti/fairseq](/alti/fairseq).
-Can be installed by running:
+It can be installed by running:
 
 ``` 
 cd alti/fairseq
@@ -26,7 +32,7 @@ We use various translation datasets in our experiments, which can be downloaded 
 - IWSLT14 German to English MT Track (iwslt14deen), available at [Link](https://wit3.fbk.eu/2014-01)
 - WMT22 French to German (wmt22deen) and WMT22 German to English (wmt22deen), both available at [Link](https://www.statmt.org/wmt22/translation-task.html)
 
-We preprocess the data using scripts found in [/data/tl](/data/tl). TODO: add more details
+We preprocess the data using scripts found in [/data/tl](/data/tl) for each corresponding datasets.
 
 ### Model Training
 
