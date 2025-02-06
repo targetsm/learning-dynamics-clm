@@ -133,11 +133,5 @@ Use plot.py to generate resutls for a specific model and plot_all.py to generate
 
 ### Token Hallucination Metric
 
-For the model-based token hallucination metric, clone and install the repository from the [project repository](https://github.com/violet-zct/fairseq-detect-hallucination). Download the pre-trained XSum model provided. We used [/halu/fairseq-detect-hallucination/test/run_test.sh](/halu/fairseq-detect-hallucination/test/run_test.sh) to compute the token hallucination ratio.
+For the model-based token hallucination metric, clone and install the repository from the [project repository](https://github.com/violet-zct/fairseq-detect-hallucination). Download the pre-trained XSum model provided. We used [/halu/fairseq-detect-hallucination/test/run_test.sh](/halu/fairseq-detect-hallucination/test/run_test.sh) and [/halu/fairseq-detect-hallucination/test/predict_hallucination_mt.py](/halu/fairseq-detect-hallucination/test/run_test.sh) to compute the token hallucination ratio.
 
-TODO: add commands, also probably more details on the metric?
-
-### Recreating the Plots
-
-TODO: add plotting details?
-TODO: Also add other e.g. bleu, comet etc.
