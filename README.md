@@ -90,23 +90,19 @@ The results are stored in [kl/plot](kl/plot).
 
 ### ALTI+
 
-We compute source and target prefix contributions over the course of training using [ALTI+](https://github.com/mt-upc/transformer-contributions-nmt). Scripts for ALTI+ computation are in [alti/transformer-contribuions-nmt-v2](/alti/transformer-contribuions-nmt-v2). Adapt and run [main.py](/alti/transformer-contribuions-nmt-v2/main.py) to compute the evolution of ALTI+ contributions over the course of training. 
-
-Results can be plottet using ``` python plot.py tl/iwslt14deen/iwslt ``` for a specific model. 
-The plots in the thesis can be generated using /alti/transformer-contribuions-nmt-v2/plot_labse.py
+We compute source and target prefix contributions over the course of training using [ALTI+](https://github.com/mt-upc/transformer-contributions-nmt). Scripts for ALTI+ computation are found in [alti/transformer-contribuions-nmt-v2](/alti/transformer-contribuions-nmt-v2). Adapt and run [main.py](/alti/transformer-contribuions-nmt-v2/main.py) to compute the evolution of ALTI+ contributions over the course of training. 
+Results for a specific model can be plotted by running ``` python plot.py tl/iwslt14deen/iwslt ```.
+The plots in the thesis were generated with [plot_labse.py](/alti/transformer-contribuions-nmt-v2/plot_labse.py).
 
 ### LRP
 
-We adapt a [source attribution method](https://github.com/lena-voita/the-story-of-heads) based on layer-wise relevance propagation for Fairseq/PyTorch to compute source and target prefix contributions. Our implementation of LRP in Fairseq is in [/lrp/lrp_fairseq](/lrp/lrp_fairseq). Adapt and run [/lrp/lrp_fairseq/main.py](/lrp/lrp_fairseq/main.py) to compute the evolution of LRP contributions over the course of training.
+We adapt a source attribution method based on [layer-wise relevance propagation](https://github.com/lena-voita/the-story-of-heads) for Fairseq/PyTorch to compute source and target prefix contributions. Our implementation of LRP in Fairseq is found in [/lrp/lrp_fairseq](/lrp/lrp_fairseq). Adapt and run [/lrp/lrp_fairseq/main.py](/lrp/lrp_fairseq/main.py) to compute the evolution of LRP contributions over the course of training:
 ```
 python main.py
 ```
-To plot results run:
+The following commands can be used for plotting:
 ```
 python plot.py plt/iwslt14deen/iwslt
-```
-Further plotting can be run using:
-```
 python plot_alti.py
 ```
 
@@ -121,9 +117,11 @@ To generate laBSE results run:
 pip install sentence_transformers
 python labse.py iwslt14deen/iwslt
 ```
-Use plot.py to generate resutls for a specific model and plot_all.py to generate plots for multiple models.
+Use ```plot.py``` to generate results for a specific model and ```plot_all.py``` to generate plots for multiple models.
 
 ### Token Hallucination Metric
 
-For the model-based token hallucination metric, clone and install the repository from the [project repository](https://github.com/violet-zct/fairseq-detect-hallucination). Download the pre-trained XSum model provided. We used [/halu/fairseq-detect-hallucination/test/run_test.sh](/halu/fairseq-detect-hallucination/test/run_test.sh) and [/halu/fairseq-detect-hallucination/test/predict_hallucination_mt.py](/halu/fairseq-detect-hallucination/test/run_test.sh) to compute the token hallucination ratio.
+For the model-based token hallucination metric, clone and install the repository from the [project repository](https://github.com/violet-zct/fairseq-detect-hallucination). 
+Download the pre-trained XSum model provided. 
+We used [/halu/fairseq-detect-hallucination/test/run_test.sh](/halu/fairseq-detect-hallucination/test/run_test.sh) and [/halu/fairseq-detect-hallucination/test/predict_hallucination_mt.py](/halu/fairseq-detect-hallucination/test/run_test.sh) to compute token hallucination ratios for trained models.
 
