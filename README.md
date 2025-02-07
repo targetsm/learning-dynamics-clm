@@ -63,7 +63,7 @@ bash train_staged_lm_trunc.sh
 
 ### Model Translations
 
-We generate translations using the script in [/comp/bleu/generate_test.sh](/comp/bleu/generate_test.sh). Adapt the file for your desired model and dataset, then run:
+We generate translations using [test_generate.sh](/comp/bleu/test_generate.sh). Adapt the file for your desired model and dataset, then run:
 
 ```bash
 bash generate_test.sh
@@ -105,7 +105,7 @@ Results for a specific model can be plotted by:
 ```bash 
 python plot.py tl/iwslt14deen/iwslt
 ```
-Plots in the thesis were generated using [plot_labse.py](/alti/transformer-contribuions-nmt-v2/plot_labse.py).
+Plots in the thesis were generated using [plot_labse.py](/alti/transformer-contributions-nmt-v2/plot_labse.py).
 
 ### LRP
 
