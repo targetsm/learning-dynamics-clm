@@ -33,12 +33,16 @@ We use various translation datasets in our experiments, which can be downloaded 
 - WMT22 French to German (wmt22deen) and WMT22 German to English (wmt22deen), both available at [Link](https://www.statmt.org/wmt22/translation-task.html)
 
 We preprocess the data using scripts found in [/data/tl](/data/tl) for each corresponding datasets.
+Validation and test data can be found in the respective directories.
+
+To generat the trianing data:
 
 For iwslt14deen adapt [prepare-iwslt14-sep.sh](/data/tl/iwslt14deen/sentp/prepare-iwslt14-sep.sh) to fit your setup and run ```bash prepare-iwslt14-sep.sh``` to generate the data.
 
 For wmt22deen and wmt22frde datasets download the data as described on the site. Adapt and run the respective prepare-iwslt14-sep.sh files to generate the full datasets.
 
 For the wmt22frde subset we used a random subset of 20M lines of the downloaded data and run the same peparation scipt on the random subset of the data. 
+
 
 ### Model Training
 
