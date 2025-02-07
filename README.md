@@ -34,9 +34,13 @@ We use various translation datasets in our experiments, which can be downloaded 
 
 We preprocess the data using scripts found in [/data/tl](/data/tl) for each corresponding datasets.
 
-### Model Training
+For iwslt14deen adapt [prepare-iwslt14-sep.sh](/data/tl/iwslt14deen/sentp/prepare-iwslt14-sep.sh) to fit your setup and run ```bash prepare-iwslt14-sep.sh``` to generate the data.
 
-TODO: Describe different models used: iwslt, wmt, wmt_big
+For wmt22deen and wmt22frde datasets download the data as described on the site. Adapt and run the respective prepare-iwslt14-sep.sh files to generate the full datasets.
+
+For the wmt22frde subset we used a random subset of 20M lines of the downloaded data and run the same peparation scipt on the random subset of the data. 
+
+### Model Training
 
 We train various models using the [Fairseq](https://github.com/facebookresearch/fairseq) framework. Scripts for data preparation and model training can be found in the [/scripts](/scripts) folder. Training scripts for specific model configurations are in [/models/tl](/models/tl).
 
