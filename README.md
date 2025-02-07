@@ -39,18 +39,18 @@ Validation and test data can be found in the respective directories.
 Generating the training data:
 For iwslt14deen adapt [prepare-iwslt14-sep.sh](/data/tl/iwslt14deen/sentp/prepare-iwslt14-sep.sh) to fit your setup and run ```bash prepare-iwslt14-sep.sh``` to generate the data.
 For wmt22deen and wmt22frde datasets download the data as described on the respective websites. Adapt and run the respective prepare-iwslt14-sep.sh files to preprocess the datasets.
-For the wmt22frde subset experiments, we use a random subset of 20M lines of the downloaded data and run the same peparation script on the subset of the data. 
+For the wmt22frde subset experiments, we use a random subset of 20M lines of the downloaded data and run the same preparation script on the subset of the data. 
 
 
 ### Model Training
 
 We train various models using the [Fairseq](https://github.com/facebookresearch/fairseq) framework. Scripts for data preparation and model training can be found in the [/scripts](/scripts) folder. Training scripts for specific model configurations used in the thesis are found in [/models/tl](/models/tl).
-To train a translation model, modify the specific training file to match desired data, model and hyperparameters. Then run:
+To train a translation model, modify the specific training file to match desired data, model and hyper-parameters. Then run:
 ```
 bash train_staged_tm.sh
 ```
-Training checkpoitns are stored according to the schedule in the training file. 
-Similarly langauge models can be trained by adapting and running:
+Training checkpoints are stored according to the schedule in the training file. 
+Similarly language models can be trained by adapting and running:
 ```
 bash train_staged_lm_trunc.sh
 ```
@@ -84,7 +84,7 @@ python plot_all.py
 ```
 To generate the plot for a specific model, run:
 ```
-python plot_restults.py iwlst14deen/iwslt
+python plot_results.py iwlst14deen/iwslt
 ```
 The results are stored in [kl/plot](kl/plot).
 
