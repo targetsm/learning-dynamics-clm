@@ -1,6 +1,6 @@
 # Investigating the Learning Dynamics of Conditional Language Models
 
-Project repository for my Master's thesis. The thesis can be accessed at: [https://www.research-collection.ethz.ch/handle/20.500.11850/697969](https://www.research-collection.ethz.ch/handle/20.500.11850/697969).
+Project repository for my Master's thesis [Link](https://www.research-collection.ethz.ch/handle/20.500.11850/697969)
 
 ## Model Setup
 
@@ -35,13 +35,10 @@ We use various translation datasets in our experiments, which can be downloaded 
 We preprocess the data using scripts found in [/data/tl](/data/tl) for each corresponding datasets.
 Validation and test data can be found in the respective directories.
 
-To generat the trianing data:
-
+Generating the training data:
 For iwslt14deen adapt [prepare-iwslt14-sep.sh](/data/tl/iwslt14deen/sentp/prepare-iwslt14-sep.sh) to fit your setup and run ```bash prepare-iwslt14-sep.sh``` to generate the data.
-
-For wmt22deen and wmt22frde datasets download the data as described on the site. Adapt and run the respective prepare-iwslt14-sep.sh files to generate the full datasets.
-
-For the wmt22frde subset we used a random subset of 20M lines of the downloaded data and run the same peparation scipt on the random subset of the data. 
+For wmt22deen and wmt22frde datasets download the data as described on the respective websites. Adapt and run the respective prepare-iwslt14-sep.sh files to preprocess the datasets.
+For the wmt22frde subset experiments, we use a random subset of 20M lines of the downloaded data and run the same peparation script on the subset of the data. 
 
 
 ### Model Training
