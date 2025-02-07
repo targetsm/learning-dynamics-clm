@@ -25,6 +25,7 @@ cd alti/fairseq
 pip install --editable ./
 ```
 
+
 ### Data
 
 We use various translation datasets in our experiments, which can be downloaded from their respective websites. The datasets include:
@@ -43,14 +44,12 @@ For the wmt22frde subset experiments, we use a random subset of 20M lines of the
 
 ### Model Training
 
-We train various models using the [Fairseq](https://github.com/facebookresearch/fairseq) framework. Scripts for data preparation and model training can be found in the [/scripts](/scripts) folder. Training scripts for specific model configurations are in [/models/tl](/models/tl).
-
+We train various models using the [Fairseq](https://github.com/facebookresearch/fairseq) framework. Scripts for data preparation and model training can be found in the [/scripts](/scripts) folder. Training scripts for specific model configurations used in the thesis are found in [/models/tl](/models/tl).
 To train a translation model, modify the specific training file to match desired data, model and hyperparameters. Then run:
 ```
 bash train_staged_tm.sh
 ```
-Checkpoints are found in checkpoints. checkpoints are stored according to schedule in training file.
-
+Training checkpoitns are stored according to the schedule in the training file. 
 Similarly langauge models can be trained by adapting and running:
 ```
 bash train_staged_lm_trunc.sh
@@ -59,59 +58,41 @@ bash train_staged_lm_trunc.sh
 ### Model Translations
 
 We generate translations using the script in [/comp/bleu/generate_test.sh](/compt/bleu/generate_test.sh).
-Adapt the file to desired model and data and run:
-
+Adapt the file to use the desired model and data and run:
 ```
 bash generate_test.sh
 ```
+The output is stored in the respective model directories in the ```evaluation_generate``` folder.
 
-Output stored in folder evaluation_generate in subfolder of model.
 
 ## Metrics
 
 ### KL Divergence
-
-To compute the KL divergence between translation and language models.
-We train a language model and a translation model on the same data as described above. 
-We compute the kl divergence between tranlsation models and unigram and bigram distributions of the training data as well as translation models and language models Fitted to the same datasets.
-
-To compute the unigram and bigram distributions of the training data adapt [kl/data/distribution.py](/kl/data/distribution.py) to fit the dataset and setup and run:
+We track the KL Divergence between translation models and unigram and bigram distributions of the training data as well as translation models and language models fitted to the same datasets over the course of training.
+To compute the unigram and bigram distributions of the training data adapt [kl/data/distribution.py](/kl/data/distribution.py) for the respective dataset and run:
 ```
 python distribution.py
 ```
-
-To compute the KL divergences for a specific translation model adapt [kl/test_on_time.sh](/kl/test_on_time.sh) and [kl/kl_on_time_efficient.py](kl/kl_on_time_efficient.py) to the corresponding paths, data and models and run:
-
+To compute the KL divergences for a specific translation and language model pair, adapt [kl/test_on_time.sh](/kl/test_on_time.sh) and [kl/kl_on_time_efficient.py](kl/kl_on_time_efficient.py) to match the corresponding paths, data and models and run:
 ```
 bash test_on_time.sh
 ```
-
-Results are stored in test_kl_dict.pkl, test_kl_dict_unigram.pkl and test_kl_dict_bigram.pkl.
-Place the files into the corresponding folder in kl/data/tl/
-Plots can be generated running 
+Results are stored as ```test_kl_dict.pkl```, ```test_kl_dict_unigram.pkl``` and ```test_kl_dict_bigram.pkl```.
+To generate plots, place the files into the corresponding folder in [kl/data/tl/](kl/data/tl/) and run:
 ```
 python plot_all.py
 ```
-plots for individual models can be generated using:
-
+To generate the plot for a specific model, run:
 ```
 python plot_restults.py iwlst14deen/iwslt
 ```
-
-The results are stored in the kl/plot folder.
+The results are stored in [kl/plot](kl/plot).
 
 ### ALTI+
 
-We compute source and target prefix contributions using [ALTI+](https://github.com/mt-upc/transformer-contributions-nmt). Scripts for ALTI+ computation are in [alti/transformer-contribuions-nmt-v2](/alti/transformer-contribuions-nmt-v2). Adapt and run [main.py](/alti/transformer-contribuions-nmt-v2/main.py) to compute the evolution of ALTI+ contributions over the course of training.
+We compute source and target prefix contributions over the course of training using [ALTI+](https://github.com/mt-upc/transformer-contributions-nmt). Scripts for ALTI+ computation are in [alti/transformer-contribuions-nmt-v2](/alti/transformer-contribuions-nmt-v2). Adapt and run [main.py](/alti/transformer-contribuions-nmt-v2/main.py) to compute the evolution of ALTI+ contributions over the course of training. 
 
-```
-python main.py
-```
-
-Results can be plottet using 
-``` python plot.py tl/iwslt14deen/iwslt ```
-for a single model.
-
+Results can be plottet using ``` python plot.py tl/iwslt14deen/iwslt ``` for a specific model. 
 The plots in the thesis can be generated using /alti/transformer-contribuions-nmt-v2/plot_labse.py
 
 ### LRP
